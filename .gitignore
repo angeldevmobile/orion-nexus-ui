@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Environment variables — NEVER commit these
+.env
+.env.*
+!.env.example
+orion-nexus-backend/.env
+orion-nexus-backend/.env.*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
