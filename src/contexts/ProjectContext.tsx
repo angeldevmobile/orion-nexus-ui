@@ -1,24 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-export interface ProjectFile {
-  name: string;
-  type: string;
-  size: string;
-  content: string;
-}
-
-interface ProjectContextType {
-  files: ProjectFile[];
-  activeFile: string;
-  generatedPreview: string;
-  setFiles: (files: ProjectFile[]) => void;
-  setActiveFile: (fileName: string) => void;
-  setGeneratedPreview: (preview: string) => void;
-  updateFileContent: (fileName: string, content: string) => void;
-  addFile: (file: ProjectFile) => void;
-}
-
-const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+import React, { useState, ReactNode, useEffect } from 'react';
+import { ProjectContext, ProjectFile } from './ProjectContextType';
 
 export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [files, setFiles] = useState<ProjectFile[]>([
@@ -102,6 +83,27 @@ body {
     setFiles(prevFiles => [...prevFiles, file]);
   };
 
+  // ✅ Escucha el código generado desde ChatProvider
+  useEffect(() => {
+    const handleCodeUpdate = (e: CustomEvent) => {
+      const newCode = e.detail as string;
+      if (!newCode) return;
+
+      // Si el archivo activo existe, lo actualiza
+      setFiles(prev =>
+        prev.map(f =>
+          f.name === activeFile ? { ...f, content: newCode } : f
+        )
+      );
+
+      // Guarda una vista previa del código renderizado
+      setGeneratedPreview(newCode);
+    };
+
+    window.addEventListener("updateCodePanel", handleCodeUpdate as EventListener);
+    return () => window.removeEventListener("updateCodePanel", handleCodeUpdate as EventListener);
+  }, [activeFile]);
+
   return (
     <ProjectContext.Provider
       value={{
@@ -118,12 +120,4 @@ body {
       {children}
     </ProjectContext.Provider>
   );
-};
-
-export const useProject = () => {
-  const context = useContext(ProjectContext);
-  if (context === undefined) {
-    throw new Error('useProject must be used within a ProjectProvider');
-  }
-  return context;
 };

@@ -2,9 +2,23 @@ import { Button } from "@/components/ui/button";
 import { Rocket, Menu, Home, Upload } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
+const hideAuthButtonsRoutes = [
+  "/dashboard",
+  "/ai-chat",
+  "/editor",
+  "/components",
+  "/projects",
+  "/settings",
+  "/pricing",
+  "/community",
+  "/history",
+  "/help",
+];
+
 export const Header = () => {
   const location = useLocation();
   const isHome = location.pathname === "/";
+  const hideAuthButtons = hideAuthButtonsRoutes.includes(location.pathname);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-lg">
@@ -48,12 +62,16 @@ export const Header = () => {
               Publicar
             </Link>
           </Button>
-          <Button variant="ghost" size="sm" asChild className="hidden md:flex">
-            <Link to="/auth">Iniciar Sesión</Link>
-          </Button>
-          <Button size="sm" asChild className="bg-primary hover:bg-primary/90">
-            <Link to="/auth">Comenzar</Link>
-          </Button>
+          {!hideAuthButtons && (
+            <>
+              <Button variant="ghost" size="sm" asChild className="hidden md:flex">
+                <Link to="/auth">Iniciar Sesión</Link>
+              </Button>
+              <Button size="sm" asChild className="bg-primary hover:bg-primary/90">
+                <Link to="/auth">Comenzar</Link>
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" className="md:hidden">
             <Menu className="w-5 h-5" />
           </Button>

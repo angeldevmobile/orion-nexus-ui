@@ -12,9 +12,19 @@ import { useState } from "react";
 const Index = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [viewProjectModalOpen, setViewProjectModalOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<any>(null);
+  type Project = {
+    name: string;
+    author?: string;
+    description: string;
+    likes?: number;
+    views?: number;
+    image?: string;
+    // Add other fields as needed
+  };
 
-  const handleViewProject = (project: any) => {
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  const handleViewProject = (project: Project) => {
     setSelectedProject(project);
     setViewProjectModalOpen(true);
   };

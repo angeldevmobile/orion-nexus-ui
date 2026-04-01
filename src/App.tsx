@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ProjectProvider } from "./contexts/ProjectContext";
+import { ChatProvider } from "./contexts/ChatContext";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import AIChat from "./pages/AIChat";
@@ -17,36 +18,126 @@ import History from "./pages/History";
 import Help from "./pages/Help";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { Header } from "./components/layout/Header";
+import { AuthProvider } from "./contexts/AuthProvider";
+import ProtectedRoute from "./contexts/ProtectedRoute";
+import AuthCallback from "./hooks/authCallback";
 
 const queryClient = new QueryClient();
 
+const AppContent = () => {
+	const location = useLocation();
+	const hideHeader = location.pathname === "/auth" || location.pathname === "/auth/callback";
+	return (
+		<>
+			{!hideHeader && <Header />}
+			<Routes>
+				<Route path="/" element={<Index />} />
+				<Route path="/auth" element={<Auth />} />
+				<Route path="/auth/callback" element={<AuthCallback />} />
+				{/* Rutas protegidas */}
+				<Route
+					path="/dashboard"
+					element={
+						<ProtectedRoute>
+							<Dashboard />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/ai-chat"
+					element={
+						<ProtectedRoute>
+							<AIChat />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/editor"
+					element={
+						<ProtectedRoute>
+							<Editor />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/components"
+					element={
+						<ProtectedRoute>
+							<Components />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/projects"
+					element={
+						<ProtectedRoute>
+							<Projects />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/settings"
+					element={
+						<ProtectedRoute>
+							<Settings />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/pricing"
+					element={
+						<ProtectedRoute>
+							<Pricing />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/community"
+					element={
+						<ProtectedRoute>
+							<Community />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/history"
+					element={
+						<ProtectedRoute>
+							<History />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/help"
+					element={
+						<ProtectedRoute>
+							<Help />
+						</ProtectedRoute>
+					}
+				/>
+				<Route path="*" element={<NotFound />} />
+			</Routes>
+		</>
+	);
+};
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ProjectProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/ai-chat" element={<AIChat />} />
-            <Route path="/editor" element={<Editor />} />
-            <Route path="/components" element={<Components />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/community" element={<Community />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/auth" element={<Auth />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </ProjectProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+	<QueryClientProvider client={queryClient}>
+		<TooltipProvider>
+			<ProjectProvider>
+				<ChatProvider>
+					<AuthProvider>
+						<Toaster />
+						<Sonner />
+						<BrowserRouter>
+							<AppContent />
+						</BrowserRouter>
+					</AuthProvider>
+				</ChatProvider>
+			</ProjectProvider>
+		</TooltipProvider>
+	</QueryClientProvider>
 );
 
 export default App;
