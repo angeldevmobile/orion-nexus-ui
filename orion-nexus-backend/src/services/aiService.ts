@@ -1,36 +1,68 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import ts from 'typescript';
 import { ChatMessage, ChatContext } from '../types/chatSession';
 import fs from 'fs/promises';
 import path from 'path';
 
-// ── Centralised dependency versions ──────────────────────────────────────────
-// Update here when upgrading the stack; everything else references these values.
-const PKG = {
-  // npm ranges (used in package.json)
-  react:              '^18.3.1',
-  reactDom:           '^18.3.1',
-  typesReact:         '^18.3.1',
-  typesReactDom:      '^18.3.1',
-  vitejsPluginReact:  '^4.3.0',
-  autoprefixer:       '^10.4.19',
-  postcss:            '^8.4.38',
-  tailwindcss:        '^3.4.3',
-  typescript:         '^5.4.5',
-  vite:               '^5.2.11',
-  // exact versions for esm.sh CDN import map
-  esm: {
-    react:                  '18.3.1',
-    lucideReact:            '0.294.0',
-    recharts:               '2.12.7',
-    clsx:                   '2.1.1',
-    tailwindMerge:          '2.3.0',
-    classVarianceAuthority: '0.7.0',
-    framerMotion:           '11.2.10',
-    dateFns:                '3.6.0',
-    zod:                    '3.23.8',
-  },
-} as const;
+// ── npm version resolver ──────────────────────────────────────────────────────
+// Fetches the latest published version of each package from the npm registry.
+// Results are cached for 24 h so the server doesn't hit npm on every request.
+// If the registry is unreachable the fallback values below are used instead.
+
+const ESM_PACKAGES = [
+  'react', 'react-dom', 'lucide-react', 'recharts',
+  'clsx', 'tailwind-merge', 'class-variance-authority',
+  'framer-motion', 'date-fns', 'zod',
+] as const;
+
+type EsmPackage = typeof ESM_PACKAGES[number];
+
+const ESM_FALLBACK: Record<EsmPackage, string> = {
+  'react': '18.3.1',
+  'react-dom': '18.3.1',
+  'lucide-react': '0.294.0',
+  'recharts': '2.12.7',
+  'clsx': '2.1.1',
+  'tailwind-merge': '2.3.0',
+  'class-variance-authority': '0.7.0',
+  'framer-motion': '11.2.10',
+  'date-fns': '3.6.0',
+  'zod': '3.23.8',
+};
+
+const VERSION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+let esmVersionCache: { versions: Record<EsmPackage, string>; at: number } | null = null;
+
+async function resolveEsmVersions(): Promise<Record<EsmPackage, string>> {
+  if (esmVersionCache && Date.now() - esmVersionCache.at < VERSION_CACHE_TTL) {
+    return esmVersionCache.versions;
+  }
+
+  const results = await Promise.allSettled(
+    ESM_PACKAGES.map(async (pkg) => {
+      const res = await fetch(`https://registry.npmjs.org/${pkg}/latest`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      const data = await res.json() as { version: string };
+      return [pkg, data.version] as [EsmPackage, string];
+    })
+  );
+
+  const versions = { ...ESM_FALLBACK };
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      const [pkg, version] = r.value;
+      versions[pkg] = version;
+    }
+  }
+
+  esmVersionCache = { versions, at: Date.now() };
+  return versions;
+}
+
+// Pre-warm the cache at module load so the first user request doesn't wait.
+resolveEsmVersions().catch(() => { /* ignore — fallback values will be used */ });
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -127,7 +159,7 @@ FILOSOFÍA DE DISEÑO — aplica SIEMPRE estos principios:
 
 GENERA SIEMPRE esta estructura de proyecto Vite completa:
 - package.json (con dependencias react, react-dom, tailwindcss)
-- index.html (punto de entrada Vite)
+- index.html (con <link rel="icon" type="image/svg+xml" href="/favicon.svg" />)
 - vite.config.ts
 - tailwind.config.js
 - src/main.tsx (monta la app en #root)
@@ -135,6 +167,9 @@ GENERA SIEMPRE esta estructura de proyecto Vite completa:
 - src/components/[Feature]/[Component].tsx (componentes específicos del prompt)
 - src/hooks/use[Feature].ts (hooks si aplica)
 - src/types/index.ts (interfaces/types si aplica)
+- public/favicon.svg (SVG 32x32 temático según el proyecto, colores acordes al diseño)
+- public/robots.txt (User-agent: * / Allow: / / Sitemap: /sitemap.xml)
+- public/placeholder.svg (imagen de placeholder 400x300, minimalista, tonos oscuros)
 
 Responde con este JSON EXACTO (sin texto extra):
 
@@ -150,11 +185,11 @@ Responde con este JSON EXACTO (sin texto extra):
   "files": [
     {
       "path": "package.json",
-      "content": ${JSON.stringify(JSON.stringify({ name: 'orion-project', version: '1.0.0', scripts: { dev: 'vite', build: 'vite build' }, dependencies: { react: PKG.react, 'react-dom': PKG.reactDom }, devDependencies: { '@types/react': PKG.typesReact, '@types/react-dom': PKG.typesReactDom, '@vitejs/plugin-react': PKG.vitejsPluginReact, tailwindcss: PKG.tailwindcss, typescript: PKG.typescript, vite: PKG.vite } }))}
+      "content": '{"name":"orion-project","version":"1.0.0","type":"module","scripts":{"dev":"vite","build":"vite build"},"dependencies":{"react":"latest","react-dom":"latest"},"devDependencies":{"@types/react":"latest","@types/react-dom":"latest","@vitejs/plugin-react":"latest","tailwindcss":"latest","typescript":"latest","vite":"latest"}}'
     },
     {
       "path": "index.html",
-      "content": "<!DOCTYPE html><html lang=\\"es\\"><head><meta charset=\\"UTF-8\\"><meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\"><title>Orion App</title></head><body><div id=\\"root\\"></div><script type=\\"module\\" src=\\"/src/main.tsx\\"></script></body></html>"
+      "content": '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Orion App</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>'
     },
     {
       "path": "src/main.tsx",
@@ -162,7 +197,7 @@ Responde con este JSON EXACTO (sin texto extra):
     },
     {
       "path": "src/App.tsx",
-      "content": "import React from 'react';\\nimport LoginForm from './components/auth/LoginForm';\\nexport default function App() { return <div className=\\"min-h-screen bg-gray-950\\"><LoginForm /></div>; }"
+      "content": "import React from 'react';\nimport LoginForm from './components/auth/LoginForm';\nexport default function App() { return <div className='min-h-screen bg-gray-950'><LoginForm /></div>; }"
     },
     {
       "path": "src/components/auth/LoginForm.tsx",
@@ -204,7 +239,7 @@ REGLAS IMPORTANTES:
         const allFiles: { path: string; content: string }[] = parsed.files || [];
         const mainFile = allFiles.find(f => f.path.includes('App.tsx')) || allFiles[0];
         const reactCode = mainFile?.content || '';
-        const previewHtml = allFiles.length > 0 ? this.generateLovablePreviewHTML(allFiles) : '';
+        const previewHtml = allFiles.length > 0 ? await this.generateLovablePreviewHTML(allFiles) : '';
 
         return JSON.stringify({
           ...parsed,
@@ -516,7 +551,6 @@ REGLAS IMPORTANTES:
   private stripTypescript(code: string): string {
     try {
       // Use the real TypeScript compiler to strip types — preserves JSX intact.
-      const ts = require('typescript') as typeof import('typescript');
       const result = ts.transpileModule(code, {
         compilerOptions: {
           module: ts.ModuleKind.ESNext,
@@ -599,7 +633,7 @@ REGLAS IMPORTANTES:
    * using Import Maps + esm.sh so real ES module imports work in the browser.
    * This is the "instant" preview shown while WebContainer boots.
    */
-  private generateLovablePreviewHTML(files: { path: string; content: string }[]): string {
+  private async generateLovablePreviewHTML(files: { path: string; content: string }[]): Promise<string> {
     // ── CSS files → inlined as <style> tags ───────────────────────────────────
     const cssFiles = files.filter(f =>
       f.path.endsWith('.css') &&
@@ -657,8 +691,8 @@ REGLAS IMPORTANTES:
 
     // ── Build the consolidated ESM import block ────────────────────────────────
     const HOOK_NAMES = ['useState', 'useEffect', 'useRef', 'useCallback', 'useMemo',
-                        'createContext', 'useContext', 'useReducer', 'useId',
-                        'useLayoutEffect', 'useTransition', 'useDeferredValue'];
+      'createContext', 'useContext', 'useReducer', 'useId',
+      'useLayoutEffect', 'useTransition', 'useDeferredValue'];
     const reactNamed = externalNamed.get('react') ?? new Set<string>();
     const allReactNamed = new Set([...HOOK_NAMES, ...reactNamed]);
 
@@ -742,21 +776,23 @@ try {
 }`;
 
     // Import map: maps bare specifiers to esm.sh ES module URLs
-    const R = PKG.esm.react;
+    // Versions are resolved from the npm registry (cached 24 h) with fallback.
+    const v = await resolveEsmVersions();
+    const R = v['react'];
     const importMap = JSON.stringify({
       imports: {
-        "react":                    `https://esm.sh/react@${R}`,
-        "react/jsx-runtime":        `https://esm.sh/react@${R}/jsx-runtime`,
-        "react-dom":                `https://esm.sh/react-dom@${R}`,
-        "react-dom/client":         `https://esm.sh/react-dom@${R}/client`,
-        "lucide-react":             `https://esm.sh/lucide-react@${PKG.esm.lucideReact}`,
-        "recharts":                 `https://esm.sh/recharts@${PKG.esm.recharts}`,
-        "clsx":                     `https://esm.sh/clsx@${PKG.esm.clsx}`,
-        "tailwind-merge":           `https://esm.sh/tailwind-merge@${PKG.esm.tailwindMerge}`,
-        "class-variance-authority": `https://esm.sh/class-variance-authority@${PKG.esm.classVarianceAuthority}`,
-        "framer-motion":            `https://esm.sh/framer-motion@${PKG.esm.framerMotion}`,
-        "date-fns":                 `https://esm.sh/date-fns@${PKG.esm.dateFns}`,
-        "zod":                      `https://esm.sh/zod@${PKG.esm.zod}`,
+        "react": `https://esm.sh/react@${R}`,
+        "react/jsx-runtime": `https://esm.sh/react@${R}/jsx-runtime`,
+        "react-dom": `https://esm.sh/react-dom@${R}`,
+        "react-dom/client": `https://esm.sh/react-dom@${R}/client`,
+        "lucide-react": `https://esm.sh/lucide-react@${v['lucide-react']}`,
+        "recharts": `https://esm.sh/recharts@${v['recharts']}`,
+        "clsx": `https://esm.sh/clsx@${v['clsx']}`,
+        "tailwind-merge": `https://esm.sh/tailwind-merge@${v['tailwind-merge']}`,
+        "class-variance-authority": `https://esm.sh/class-variance-authority@${v['class-variance-authority']}`,
+        "framer-motion": `https://esm.sh/framer-motion@${v['framer-motion']}`,
+        "date-fns": `https://esm.sh/date-fns@${v['date-fns']}`,
+        "zod": `https://esm.sh/zod@${v['zod']}`,
       }
     }, null, 2);
 
@@ -1042,7 +1078,10 @@ IMPORTANTE: Responde SOLO con JSON válido siguiendo esta estructura EXACTA:
     "/tailwind.config.js": "contenido del archivo",
     "/postcss.config.js": "contenido del archivo",
     "/.gitignore": "contenido del archivo",
-    "/README.md": "contenido del archivo"
+    "/README.md": "contenido del archivo",
+    "/public/favicon.svg": "SVG del ícono del proyecto (pequeño, 32x32, relacionado con el tema)",
+    "/public/robots.txt": "User-agent: *\\nAllow: /\\n\\nSitemap: /sitemap.xml",
+    "/public/placeholder.svg": "SVG de placeholder de imagen (400x300, minimalista, tonos oscuros)"
   },
   "meta": {
     "name": "nombre-proyecto",
@@ -1057,6 +1096,8 @@ REGLAS:
 - Genera código funcional y completo
 - Usa TypeScript y Tailwind CSS
 - Incluye configuraciones necesarias
+- SIEMPRE incluye /public/favicon.svg (SVG temático 32x32), /public/robots.txt y /public/placeholder.svg
+- En /index.html usa <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 - No agregues texto explicativo, SOLO JSON`;
 
       const enhancedPrompt = `Genera un proyecto ${framework} completo para: ${prompt}
@@ -1133,18 +1174,18 @@ El proyecto debe ser completamente funcional y listo para ejecutar con "npm inst
             preview: 'vite preview'
           },
           dependencies: {
-            react: PKG.react,
-            'react-dom': PKG.reactDom,
+            react: 'latest',
+            'react-dom': 'latest',
           },
           devDependencies: {
-            '@types/react': PKG.typesReact,
-            '@types/react-dom': PKG.typesReactDom,
-            '@vitejs/plugin-react': PKG.vitejsPluginReact,
-            autoprefixer: PKG.autoprefixer,
-            postcss: PKG.postcss,
-            tailwindcss: PKG.tailwindcss,
-            typescript: PKG.typescript,
-            vite: PKG.vite,
+            '@types/react': 'latest',
+            '@types/react-dom': 'latest',
+            '@vitejs/plugin-react': 'latest',
+            autoprefixer: 'latest',
+            postcss: 'latest',
+            tailwindcss: 'latest',
+            typescript: 'latest',
+            vite: 'latest',
           }
         }, null, 2),
 
@@ -1152,6 +1193,7 @@ El proyecto debe ser completamente funcional y listo para ejecutar con "npm inst
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${projectName}</title>
   </head>
@@ -1160,6 +1202,22 @@ El proyecto debe ser completamente funcional y listo para ejecutar con "npm inst
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>`,
+
+        '/public/favicon.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#0A0A0F"/>
+  <path d="M16 6 L22 10 L22 22 L16 26 L10 22 L10 10 Z" fill="none" stroke="#06B6D4" stroke-width="1.5"/>
+  <path d="M16 10 L19 13.5 L16 17 L13 13.5 Z" fill="#8B5CF6"/>
+  <circle cx="16" cy="20" r="2" fill="#06B6D4"/>
+</svg>`,
+
+        '/public/robots.txt': `User-agent: *\nAllow: /\n\nSitemap: /sitemap.xml`,
+
+        '/public/placeholder.svg': `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="none">
+  <rect width="400" height="300" fill="#1a1a2e" rx="8"/>
+  <rect x="150" y="100" width="100" height="100" rx="50" fill="#ffffff08" stroke="#ffffff15" stroke-width="1"/>
+  <path d="M185 140 L200 125 L215 140 L210 140 L210 155 L190 155 L190 140 Z" fill="#ffffff20"/>
+  <text x="200" y="220" font-family="system-ui" font-size="13" fill="#ffffff40" text-anchor="middle">Sin imagen</text>
+</svg>`,
 
         '/src/main.tsx': `import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -1306,8 +1364,6 @@ npm run build
     };
   }
 
-  // ...existing code...
-
   async streamResponse(
     message: string,
     options: GenerateResponseOptions,
@@ -1416,7 +1472,7 @@ REGLAS:
 
       const mainFile = files.find(f => f.path.includes('App.tsx')) || files[0];
       const reactCode = mainFile?.content || '';
-      const previewHtml = files.length > 0 ? this.generateLovablePreviewHTML(files) : '';
+      const previewHtml = files.length > 0 ? await this.generateLovablePreviewHTML(files) : '';
 
       onChunk('__ENRICHED__:' + JSON.stringify({
         previewHtml,

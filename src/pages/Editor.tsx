@@ -1,4 +1,3 @@
-import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,11 +10,15 @@ import {
 	Settings2,
 	FileCode,
 	Layout,
-	Palette,
-	Plus,
-	FolderPlus,
+	Home,
+	MessageSquare,
+	FolderOpen,
+	Settings,
+	Rocket,
+	Upload,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import FileExplorer from "@/editor/FileExplorer";
 import {
 	Dialog,
@@ -39,7 +42,15 @@ import {
 	runDevServer,
 } from "@/editor/runtime/orionContainer";
 import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
-import { runProject } from "@/editor/runProject";
+import { authService } from "@/service/AuthService";
+
+const NAV_ITEMS = [
+	{ to: "/dashboard",  icon: Home,          label: "Dashboard" },
+	{ to: "/ai-chat",    icon: MessageSquare, label: "AI Chat" },
+	{ to: "/editor",     icon: Code2,         label: "Editor" },
+	{ to: "/projects",   icon: FolderOpen,    label: "Proyectos" },
+	{ to: "/settings",   icon: Settings,      label: "Ajustes" },
+];
 
 export default function Editor() {
 	const {
@@ -53,35 +64,24 @@ export default function Editor() {
 	const [editedContent, setEditedContent] = useState("");
 	const [tree, setTree] = useState<FileNode[]>([]);
 	const [consoleLines, setConsoleLines] = useState<string[]>([]);
-	const [selectedTemplate, setSelectedTemplate] =
-		useState<string>("react-vite");
+	const [selectedTemplate, setSelectedTemplate] = useState<string>("react-vite");
 	const [previewUrl, setPreviewUrl] = useState<string>("");
-	const [isRunning, setIsRunning] = useState(false);
-	const [logs, setLogs] = useState<string[]>([]);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const { toast } = useToast();
+	const location = useLocation();
+	const navigate = useNavigate();
 
-	// Crear nuevo proyecto con estructura completa
+	// Create new project from selected template
 	const handleCreateProject = async () => {
 		setConsoleLines(["📦 Creando proyecto..."]);
-
 		try {
 			await fileManager.clearDirectory("/");
-
 			const template = PROJECT_TEMPLATES[selectedTemplate];
-			if (!template) {
-				throw new Error(`Template ${selectedTemplate} no encontrado`);
-			}
+			if (!template) throw new Error(`Template ${selectedTemplate} no encontrado`);
 
-			setConsoleLines((lines) => [
-				...lines,
-				`${template.icon} Usando template: ${template.name}`,
-			]);
-
-			// Crear proyecto desde template
+			setConsoleLines((lines) => [...lines, `${template.icon} Usando template: ${template.name}`]);
 			const projectFiles = await template.createProject();
 
-			// Crear archivos
 			for (const [path, content] of Object.entries(projectFiles)) {
 				await fileManager.writeFile(path, content);
 				setConsoleLines((lines) => [...lines, `✅ Creado: ${path}`]);
@@ -90,67 +90,46 @@ export default function Editor() {
 			await reloadTree();
 			setLocalActiveFile("/src/App.tsx");
 			setProjectActiveFile("/src/App.tsx");
-
 			setConsoleLines((lines) => [
 				...lines,
 				`🚀 ¡Proyecto ${template.name} creado!`,
 				"💡 Haz clic en 'Ejecutar' para instalar dependencias",
 			]);
-
-			toast({
-				title: "Proyecto Creado",
-				description: `${template.name} listo para desarrollar`,
-			});
+			toast({ title: "Proyecto Creado", description: `${template.name} listo para desarrollar` });
 		} catch (error) {
-			setConsoleLines((lines) => [...lines, ` Error: ${error}`]);
+			setConsoleLines((lines) => [...lines, `❌ Error: ${error}`]);
 		}
 	};
 
-	// Refresca el árbol de archivos construyendo jerarquía
 	const reloadTree = async () => {
 		try {
-			// Obtener todos los archivos y carpetas
 			const allPaths = await getAllFilePaths("/");
-
-			// Construir árbol jerárquico
-			const tree = buildFileTree(allPaths);
-
-			setTree(tree);
+			setTree(buildFileTree(allPaths));
 		} catch (error) {
 			console.error("Error recargando árbol:", error);
 		}
 	};
 
-	// Obtener todas las rutas recursivamente
 	const getAllFilePaths = async (dir: string): Promise<string[]> => {
 		const paths: string[] = [];
-
 		try {
 			const entries = await fileManager.listDir(dir);
-
 			for (const entry of entries) {
-				const fullPath = entry.path;
-				paths.push(fullPath);
-
-				// Si es carpeta, obtener contenido recursivamente
+				paths.push(entry.path);
 				if (entry.type === "folder") {
-					const subPaths = await getAllFilePaths(fullPath);
-					paths.push(...subPaths);
+					paths.push(...(await getAllFilePaths(entry.path)));
 				}
 			}
 		} catch (error) {
 			console.error(`Error leyendo ${dir}:`, error);
 		}
-
 		return paths;
 	};
 
-	// Construir árbol jerárquico desde lista de rutas
 	const buildFileTree = (paths: string[]): FileNode[] => {
 		interface TreeNode extends Omit<FileNode, "children"> {
 			children?: Record<string, TreeNode>;
 		}
-
 		const root: Record<string, TreeNode> = {};
 
 		paths.forEach((path) => {
@@ -163,7 +142,6 @@ export default function Editor() {
 					const isFile =
 						index === parts.length - 1 &&
 						!paths.some((p) => p.startsWith(fullPath + "/") && p !== fullPath);
-
 					current[part] = {
 						name: part,
 						path: fullPath,
@@ -171,51 +149,32 @@ export default function Editor() {
 						children: isFile ? undefined : {},
 					};
 				}
-
 				if (current[part].children) {
-					current = current[part].children;
+					current = current[part].children as Record<string, TreeNode>;
 				}
 			});
 		});
 
-		// Convertir objeto a array
-		const convertToArray = (obj: Record<string, TreeNode>): FileNode[] => {
-			return Object.values(obj).map((node) => {
-				if (node.children && typeof node.children === "object") {
-					return {
-						name: node.name,
-						path: node.path,
-						type: node.type,
-						children: convertToArray(node.children),
-					};
-				}
-				return {
-					name: node.name,
-					path: node.path,
-					type: node.type,
-				};
-			});
-		};
+		const convertToArray = (obj: Record<string, TreeNode>): FileNode[] =>
+			Object.values(obj).map((node) => ({
+				name: node.name,
+				path: node.path,
+				type: node.type,
+				...(node.children ? { children: convertToArray(node.children) } : {}),
+			}));
 
 		return convertToArray(root);
 	};
 
-	useEffect(() => {
-		setLocalActiveFile(activeFile);
-	}, [activeFile]);
+	useEffect(() => { setLocalActiveFile(activeFile); }, [activeFile]);
 
 	useEffect(() => {
 		const file = files.find((f) => f.name === localActiveFile);
-		if (file) {
-			setEditedContent(file.content);
-		}
+		if (file) setEditedContent(file.content);
 	}, [localActiveFile, files]);
 
-	useEffect(() => {
-		reloadTree(); // Cargar árbol al montar
-	}, []);
+	useEffect(() => { reloadTree(); }, []);
 
-	// Selección de archivo: lee del FS virtual
 	const handleFileSelect = async (path: string) => {
 		setLocalActiveFile(path);
 		setProjectActiveFile(path);
@@ -223,39 +182,29 @@ export default function Editor() {
 		setEditedContent(content);
 	};
 
-	// Guardar archivo: escribe en el FS virtual y refresca árbol
 	const handleSave = async () => {
 		await fileManager.writeFile(localActiveFile, editedContent);
-		toast({
-			title: "Guardado exitoso",
-			description: `${localActiveFile} ha sido guardado correctamente.`,
-		});
+		toast({ title: "Guardado", description: `${localActiveFile} guardado correctamente.` });
 		await reloadTree();
 	};
 
-	// Crear archivo y refresca árbol
 	const handleCreateFile = async (name: string) => {
 		await fileManager.createFile(`/${name}`);
 		await reloadTree();
 	};
 
-	// Crear carpeta y refresca árbol
 	const handleCreateFolder = async (name: string) => {
 		await fileManager.createFolder(`/${name}`);
 		await reloadTree();
 	};
 
-	// Ejecutar proyecto con WebContainer
 	const handleRun = async () => {
-		setConsoleLines([]); // Limpia consola
+		setConsoleLines([]);
 		const snapshot = await dumpFsToJson();
 		await initWebContainer(snapshot);
-		await installDependencies((log) =>
-			setConsoleLines((lines) => [...lines, log])
-		);
+		await installDependencies((log) => setConsoleLines((lines) => [...lines, log]));
 		await runDevServer((log) => {
 			setConsoleLines((lines) => [...lines, log]);
-			// Detecta URL y actualiza iframe
 			if (log.startsWith("🌍 Servidor listo en ")) {
 				const url = log.split("en ")[1];
 				if (iframeRef.current) iframeRef.current.src = url;
@@ -263,394 +212,260 @@ export default function Editor() {
 		});
 	};
 
-	// Función para ejecutar el proyecto
-	const handleRunProject = async () => {
-		try {
-			setIsRunning(true);
-			setLogs([]); // Limpiar logs anteriores
-
-			const serverUrl = await runProject((message) => {
-				// Agregar cada log al estado
-				setLogs((prev) => [...prev, message]);
-				console.log(message);
-			});
-
-			if (serverUrl) {
-				setPreviewUrl(serverUrl);
-				toast({
-					title: "✅ Proyecto ejecutándose",
-					description: `Servidor disponible en ${serverUrl}`,
-				});
-			}
-		} catch (error) {
-			console.error("Error:", error);
-			toast({
-				title: "❌ Error",
-				description:
-					error instanceof Error ? error.message : "Error ejecutando proyecto",
-				variant: "destructive",
-			});
-		} finally {
-			setIsRunning(false);
-		}
-	};
-
-	const currentFile = files.find((f) => f.name === localActiveFile);
-
 	return (
-		<div className="min-h-screen bg-background">
-			<div className="flex">
-				<Sidebar />
-				<main className="flex-1 ml-64 pt-16">
-					<div className="flex h-[calc(100vh-4rem)]">
-						{/* File Explorer */}
-						<div className="w-64 border-r border-border bg-card p-4">
-							<div className="mb-4">
-								<h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-									<FileCode className="w-4 h-4" />
-									Archivos
-								</h2>
-								<div className="space-y-2 mb-3">
-									<select
-										value={selectedTemplate}
-										onChange={(e) => setSelectedTemplate(e.target.value)}
-										className="w-full px-2 py-1 text-xs bg-background border border-border rounded">
-										{Object.entries(PROJECT_TEMPLATES).map(
-											([key, template]) => (
-												<option key={key} value={key}>
-													{template.icon} {template.name}
-												</option>
-											)
-										)}
-									</select>
-									<Button
-										size="sm"
-										variant="outline"
-										className="w-full text-xs"
-										onClick={handleCreateProject}>
-										<Layout className="w-3 h-3 mr-1" />
-										Crear Proyecto
-									</Button>
-								</div>
-							</div>
-							<FileExplorer
-								tree={tree}
-								onOpenFile={handleFileSelect}
-								onCreateFile={handleCreateFile}
-								onCreateFolder={handleCreateFolder}
-							/>
+		<div className="h-screen bg-background flex overflow-hidden">
+
+			{/* ── Icon sidebar ─────────────────────────────────────────── */}
+			<aside className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border bg-card">
+				<Link
+					to="/"
+					className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-5 hover:bg-primary/20 transition-colors"
+					title="Inicio"
+				>
+					<Rocket className="w-4 h-4 text-primary" />
+				</Link>
+
+				<nav className="flex flex-col gap-1 flex-1">
+					{NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+						<Link
+							key={to}
+							to={to}
+							title={label}
+							className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+								location.pathname === to
+									? "bg-primary text-primary-foreground"
+									: "text-muted-foreground hover:bg-secondary hover:text-foreground"
+							}`}
+						>
+							<Icon className="w-4 h-4" />
+						</Link>
+					))}
+				</nav>
+
+				{/* User avatar */}
+				{(() => {
+					const user = authService.getUser();
+					const initials = (user?.username ?? user?.email ?? "?").slice(0, 2).toUpperCase();
+					return (
+						<div
+							className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
+							title={user?.username ?? user?.email ?? "Usuario"}
+							onClick={() => navigate("/settings")}
+						>
+							{user?.avatar
+								? <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
+								: initials}
 						</div>
+					);
+				})()}
 
-						{/* Editor Area */}
-						<div className="flex-1 flex flex-col">
-							<div className="border-b border-border p-4 bg-card">
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-4">
-										<div className="flex items-center gap-2">
-											<Code2 className="w-5 h-5 text-primary" />
-											<span className="font-heading font-semibold">
-												Editor de Código
-											</span>
-										</div>
-										<Badge variant="secondary">{localActiveFile}</Badge>
-									</div>
+				<Button
+					size="sm"
+					onClick={() => navigate("/projects")}
+					className="w-9 h-9 p-0 bg-primary hover:bg-primary/90"
+					title="Proyectos"
+				>
+					<Upload className="w-4 h-4" />
+				</Button>
+			</aside>
 
-									<div className="flex items-center gap-2">
-										<Dialog open={configOpen} onOpenChange={setConfigOpen}>
-											<DialogTrigger asChild>
-												<Button variant="outline" size="sm">
-													<Settings2 className="w-4 h-4 mr-2" />
-													Configurar
-												</Button>
-											</DialogTrigger>
-											<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-												<DialogHeader>
-													<DialogTitle>Configuración y Exportación</DialogTitle>
-													<DialogDescription>
-														Convierte y exporta tu proyecto a diferentes
-														lenguajes y frameworks
-													</DialogDescription>
-												</DialogHeader>
+			{/* ── File Explorer ─────────────────────────────────────────── */}
+			<div className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">
+				<div className="px-3 py-3 border-b border-border">
+					<h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
+						<FileCode className="w-3.5 h-3.5" />
+						Archivos
+					</h2>
+					<select
+						value={selectedTemplate}
+						onChange={(e) => setSelectedTemplate(e.target.value)}
+						className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded-lg mb-2"
+					>
+						{Object.entries(PROJECT_TEMPLATES).map(([key, template]) => (
+							<option key={key} value={key}>
+								{(template as ProjectTemplate).icon} {(template as ProjectTemplate).name}
+							</option>
+						))}
+					</select>
+					<Button
+						size="sm"
+						variant="outline"
+						className="w-full text-xs h-7"
+						onClick={handleCreateProject}
+					>
+						<Layout className="w-3 h-3 mr-1.5" />
+						Crear Proyecto
+					</Button>
+				</div>
 
-												<div className="space-y-6 py-4">
-													<div className="space-y-4">
-														<Label className="text-base font-semibold">
-															Exportar proyecto como:
-														</Label>
-														<div className="grid grid-cols-2 gap-3">
-															{[
-																{ name: "React", icon: "⚛️" },
-																{ name: "HTML/CSS/JS", icon: "🌐" },
-																{ name: "Flutter", icon: "📱" },
-																{ name: "Vue.js", icon: "💚" },
-																{ name: "Angular", icon: "🅰️" },
-																{ name: "Next.js", icon: "▲" },
-																{ name: "Svelte", icon: "🔥" },
-																{ name: "AppScript", icon: "📜" },
-															].map((framework) => (
-																<Button
-																	key={framework.name}
-																	variant="outline"
-																	className="justify-start h-auto py-3 hover:bg-primary/10 hover:border-primary">
-																	<span className="text-2xl mr-3">
-																		{framework.icon}
-																	</span>
-																	<span className="font-medium">
-																		{framework.name}
-																	</span>
-																</Button>
-															))}
-														</div>
-													</div>
+				<div className="flex-1 overflow-y-auto p-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
+					<FileExplorer
+						tree={tree}
+						onOpenFile={handleFileSelect}
+						onCreateFile={handleCreateFile}
+						onCreateFolder={handleCreateFolder}
+					/>
+				</div>
+			</div>
 
-													<div className="pt-4 border-t border-border">
-														<Label className="text-base font-semibold mb-4 block">
-															Opciones de exportación:
-														</Label>
-														<div className="space-y-4">
-															<div className="flex items-center justify-between">
-																<div>
-																	<p className="font-medium text-sm">
-																		Incluir dependencias
-																	</p>
-																	<p className="text-xs text-muted-foreground">
-																		package.json con todas las librerías
-																	</p>
-																</div>
-																<Switch defaultChecked />
-															</div>
-															<div className="flex items-center justify-between">
-																<div>
-																	<p className="font-medium text-sm">
-																		Minificar código
-																	</p>
-																	<p className="text-xs text-muted-foreground">
-																		Optimizar para producción
-																	</p>
-																</div>
-																<Switch defaultChecked />
-															</div>
-															<div className="flex items-center justify-between">
-																<div>
-																	<p className="font-medium text-sm">
-																		Comentarios en código
-																	</p>
-																	<p className="text-xs text-muted-foreground">
-																		Documentación automática
-																	</p>
-																</div>
-																<Switch />
-															</div>
-															<div className="flex items-center justify-between">
-																<div>
-																	<p className="font-medium text-sm">
-																		TypeScript
-																	</p>
-																	<p className="text-xs text-muted-foreground">
-																		Usar TypeScript en lugar de JavaScript
-																	</p>
-																</div>
-																<Switch defaultChecked />
-															</div>
-														</div>
-													</div>
+			{/* ── Editor area ───────────────────────────────────────────── */}
+			<div className="flex-1 flex flex-col min-w-0">
 
-													<div className="pt-4 border-t border-border flex gap-3">
-														<Button className="flex-1 bg-primary hover:bg-primary/90">
-															<Download className="w-4 h-4 mr-2" />
-															Exportar Proyecto
-														</Button>
-														<Button
-															variant="outline"
-															className="flex-1"
-															onClick={() => setConfigOpen(false)}>
-															Cancelar
-														</Button>
-													</div>
-												</div>
-											</DialogContent>
-										</Dialog>
-
-										<Button variant="outline" size="sm" onClick={handleSave}>
-											<Save className="w-4 h-4 mr-2" />
-											Guardar
-										</Button>
-										<Button
-											size="sm"
-											className="bg-primary hover:bg-primary/90"
-											onClick={handleRun}>
-											<Play className="w-4 h-4 mr-2" />
-											Ejecutar
-										</Button>
-									</div>
-								</div>
-							</div>
-
-							<Tabs defaultValue="code" className="flex-1">
-								<div className="border-b border-border bg-card px-4">
-									<TabsList>
-										<TabsTrigger value="code">Código</TabsTrigger>
-										<TabsTrigger value="preview">Vista Previa</TabsTrigger>
-										<TabsTrigger value="console">Consola</TabsTrigger>
-									</TabsList>
-								</div>
-
-								<TabsContent value="code" className="flex-1 m-0">
-									<div className="h-[calc(100vh-13rem)] bg-background p-0">
-										<MonacoEditor
-											filePath={localActiveFile}
-											code={editedContent}
-											onChange={setEditedContent}
-										/>
-									</div>
-								</TabsContent>
-
-								<TabsContent value="preview" className="flex-1 m-0">
-									<div className="h-[calc(100vh-13rem)] bg-muted/20 p-0">
-										{/* Mostrar imagen si el archivo seleccionado es una imagen */}
-										{localActiveFile.match(
-											/\.(ico|png|jpg|jpeg|gif|svg|webp)$/i
-										) ? (
-											<div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-												<div className="bg-card rounded-lg p-6 shadow-lg">
-													<img
-														src={(() => {
-															// Si ya es una URL data válida, usarla directamente
-															if (editedContent.startsWith("data:")) {
-																return editedContent;
-															}
-
-															// Detectar si el contenido es texto (SVG o base64)
-															const isTextContent = editedContent
-																.trim()
-																.startsWith("<");
-
-															if (
-																isTextContent ||
-																localActiveFile.endsWith(".svg")
-															) {
-																// Contenido SVG
-																return `data:image/svg+xml;utf8,${encodeURIComponent(
-																	editedContent
-																)}`;
-															} else {
-																// Contenido base64 para imágenes binarias
-																const extension = localActiveFile
-																	.split(".")
-																	.pop()
-																	?.toLowerCase();
-																const mimeType =
-																	extension === "ico" ? "x-icon" : extension;
-																return `data:image/${mimeType};base64,${editedContent}`;
-															}
-														})()}
-														alt={localActiveFile}
-														className="max-w-full max-h-[60vh] object-contain"
-														onError={(e) => {
-															const target = e.currentTarget;
-															target.style.display = "none";
-															const errorMsg = document.createElement("div");
-															errorMsg.className =
-																"text-sm text-destructive text-center p-4";
-															errorMsg.textContent =
-																"Error al cargar la imagen. Verifica que el archivo tenga un formato válido.";
-															target.parentElement?.appendChild(errorMsg);
-														}}
-													/>
-												</div>
-												<div className="text-center">
-													<p className="text-sm font-medium text-foreground">
-														{localActiveFile}
-													</p>
-													<p className="text-xs text-muted-foreground mt-1">
-														{editedContent.trim().startsWith("<")
-															? "Imagen SVG"
-															: "Archivo binario (base64)"}
-													</p>
-												</div>
-											</div>
-										) : (
-											// Mostrar iframe para la aplicación
-											<iframe
-												ref={iframeRef}
-												id="preview-iframe"
-												style={{
-													width: "100%",
-													height: "100%",
-													border: "none",
-												}}
-												title="Vista Previa"
-											/>
-										)}
-									</div>
-								</TabsContent>
-
-								<TabsContent value="console" className="flex-1 m-0">
-									<div className="h-[calc(100vh-13rem)] bg-background p-6">
-										<Card className="h-full bg-card border-border p-4 overflow-auto font-mono text-sm">
-											<div className="space-y-2 text-muted-foreground">
-												{consoleLines.map((line, i) => (
-													<p key={i}>{line}</p>
-												))}
-											</div>
-										</Card>
-									</div>
-								</TabsContent>
-							</Tabs>
-						</div>
-
-						{/* Properties Panel */}
-						<div className="w-80 border-l border-border bg-card p-4">
-							<h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-								<Palette className="w-4 h-4" />
-								Propiedades
-							</h2>
-							<div className="space-y-4">
-								<Card className="p-4 bg-secondary/50 border-border">
-									<h3 className="text-sm font-medium mb-2">
-										Componente Seleccionado
-									</h3>
-									<p className="text-xs text-muted-foreground">Button</p>
-								</Card>
-
-								<div className="space-y-3">
-									<div>
-										<label className="text-xs font-medium block mb-2">
-											Color
-										</label>
-										<div className="flex gap-2">
-											<div className="w-8 h-8 rounded-lg bg-primary border-2 border-foreground cursor-pointer" />
-											<div className="w-8 h-8 rounded-lg bg-secondary border border-border cursor-pointer" />
-											<div className="w-8 h-8 rounded-lg bg-destructive border border-border cursor-pointer" />
-										</div>
-									</div>
-
-									<div>
-										<label className="text-xs font-medium block mb-2">
-											Tamaño
-										</label>
-										<select className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border">
-											<option>Default</option>
-											<option>Small</option>
-											<option>Large</option>
-										</select>
-									</div>
-
-									<div>
-										<label className="text-xs font-medium block mb-2">
-											Variante
-										</label>
-										<select className="w-full px-3 py-2 text-sm rounded-lg bg-background border border-border">
-											<option>Default</option>
-											<option>Outline</option>
-											<option>Ghost</option>
-										</select>
-									</div>
-								</div>
-							</div>
-						</div>
+				{/* Top bar */}
+				<div className="flex-shrink-0 border-b border-border px-4 py-2.5 bg-card flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<Code2 className="w-4 h-4 text-primary" />
+						<span className="font-heading font-semibold text-sm">Editor</span>
+						<Badge variant="secondary" className="text-xs font-mono">{localActiveFile}</Badge>
 					</div>
-				</main>
+
+					<div className="flex items-center gap-2">
+						<Dialog open={configOpen} onOpenChange={setConfigOpen}>
+							<DialogTrigger asChild>
+								<Button variant="outline" size="sm" className="h-7 text-xs">
+									<Settings2 className="w-3.5 h-3.5 mr-1.5" />
+									Exportar
+								</Button>
+							</DialogTrigger>
+							<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+								<DialogHeader>
+									<DialogTitle>Exportar Proyecto</DialogTitle>
+									<DialogDescription>
+										Convierte y exporta tu proyecto a diferentes lenguajes y frameworks
+									</DialogDescription>
+								</DialogHeader>
+
+								<div className="space-y-6 py-4">
+									<div className="space-y-4">
+										<Label className="text-base font-semibold">Exportar como:</Label>
+										<div className="grid grid-cols-2 gap-3">
+											{[
+												{ name: "React",       icon: "⚛️" },
+												{ name: "HTML/CSS/JS", icon: "🌐" },
+												{ name: "Flutter",     icon: "📱" },
+												{ name: "Vue.js",      icon: "💚" },
+												{ name: "Angular",     icon: "🅰️" },
+												{ name: "Next.js",     icon: "▲" },
+												{ name: "Svelte",      icon: "🔥" },
+												{ name: "AppScript",   icon: "📜" },
+											].map((fw) => (
+												<Button
+													key={fw.name}
+													variant="outline"
+													className="justify-start h-auto py-3 hover:bg-primary/10 hover:border-primary"
+												>
+													<span className="text-2xl mr-3">{fw.icon}</span>
+													<span className="font-medium">{fw.name}</span>
+												</Button>
+											))}
+										</div>
+									</div>
+
+									<div className="pt-4 border-t border-border space-y-4">
+										<Label className="text-base font-semibold block">Opciones:</Label>
+										{[
+											{ label: "Incluir dependencias", sub: "package.json con todas las librerías", def: true },
+											{ label: "Minificar código",     sub: "Optimizar para producción",            def: true },
+											{ label: "Comentarios",          sub: "Documentación automática",             def: false },
+											{ label: "TypeScript",           sub: "Usar TypeScript en lugar de JavaScript", def: true },
+										].map((opt) => (
+											<div key={opt.label} className="flex items-center justify-between">
+												<div>
+													<p className="font-medium text-sm">{opt.label}</p>
+													<p className="text-xs text-muted-foreground">{opt.sub}</p>
+												</div>
+												<Switch defaultChecked={opt.def} />
+											</div>
+										))}
+									</div>
+
+									<div className="pt-4 border-t border-border flex gap-3">
+										<Button className="flex-1 bg-primary hover:bg-primary/90">
+											<Download className="w-4 h-4 mr-2" />
+											Exportar Proyecto
+										</Button>
+										<Button variant="outline" className="flex-1" onClick={() => setConfigOpen(false)}>
+											Cancelar
+										</Button>
+									</div>
+								</div>
+							</DialogContent>
+						</Dialog>
+
+						<Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSave}>
+							<Save className="w-3.5 h-3.5 mr-1.5" />
+							Guardar
+						</Button>
+						<Button size="sm" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={handleRun}>
+							<Play className="w-3.5 h-3.5 mr-1.5" />
+							Ejecutar
+						</Button>
+					</div>
+				</div>
+
+				{/* Tabs */}
+				<Tabs defaultValue="code" className="flex-1 flex flex-col min-h-0">
+					<div className="flex-shrink-0 border-b border-border bg-card px-4">
+						<TabsList className="h-9">
+							<TabsTrigger value="code"    className="text-xs">Código</TabsTrigger>
+							<TabsTrigger value="preview" className="text-xs">Vista Previa</TabsTrigger>
+							<TabsTrigger value="console" className="text-xs">Consola</TabsTrigger>
+						</TabsList>
+					</div>
+
+					<TabsContent value="code" className="flex-1 m-0 overflow-hidden">
+						<MonacoEditor
+							filePath={localActiveFile}
+							code={editedContent}
+							onChange={setEditedContent}
+						/>
+					</TabsContent>
+
+					<TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
+						{localActiveFile.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/i) ? (
+							<div className="flex flex-col items-center justify-center h-full gap-4 p-8 bg-muted/20">
+								<div className="bg-card rounded-lg p-6 shadow-lg">
+									<img
+										src={(() => {
+											if (editedContent.startsWith("data:")) return editedContent;
+											if (editedContent.trim().startsWith("<") || localActiveFile.endsWith(".svg"))
+												return `data:image/svg+xml;utf8,${encodeURIComponent(editedContent)}`;
+											const ext = localActiveFile.split(".").pop()?.toLowerCase();
+											const mime = ext === "ico" ? "x-icon" : ext;
+											return `data:image/${mime};base64,${editedContent}`;
+										})()}
+										alt={localActiveFile}
+										className="max-w-full max-h-[60vh] object-contain"
+									/>
+								</div>
+								<p className="text-sm font-medium">{localActiveFile}</p>
+							</div>
+						) : (
+							<iframe
+								ref={iframeRef}
+								id="preview-iframe"
+								style={{ width: "100%", height: "100%", border: "none" }}
+								title="Vista Previa"
+							/>
+						)}
+					</TabsContent>
+
+					<TabsContent value="console" className="flex-1 m-0 overflow-hidden">
+						<div className="h-full bg-background p-4">
+							<Card className="h-full bg-card border-border p-4 overflow-auto font-mono text-sm [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
+								{consoleLines.length === 0 ? (
+									<p className="text-muted-foreground text-xs">Consola vacía. Ejecuta el proyecto para ver los logs.</p>
+								) : (
+									<div className="space-y-1">
+										{consoleLines.map((line, i) => (
+											<p key={i} className="text-muted-foreground">{line}</p>
+										))}
+									</div>
+								)}
+							</Card>
+						</div>
+					</TabsContent>
+				</Tabs>
 			</div>
 		</div>
 	);

@@ -196,8 +196,7 @@ export default tseslint.config(
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Orion Project</title>
   </head>
@@ -206,6 +205,25 @@ export default tseslint.config(
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>`,
+
+        "/public/favicon.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#0A0A0F"/>
+  <path d="M16 6 L22 10 L22 22 L16 26 L10 22 L10 10 Z" fill="none" stroke="#06B6D4" stroke-width="1.5"/>
+  <path d="M16 10 L19 13.5 L16 17 L13 13.5 Z" fill="#8B5CF6"/>
+  <circle cx="16" cy="20" r="2" fill="#06B6D4"/>
+</svg>`,
+
+        "/public/robots.txt": `User-agent: *
+Allow: /
+
+Sitemap: /sitemap.xml`,
+
+        "/public/placeholder.svg": `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="none">
+  <rect width="400" height="300" fill="#1a1a2e" rx="8"/>
+  <rect x="150" y="100" width="100" height="100" rx="50" fill="#ffffff08" stroke="#ffffff15" stroke-width="1"/>
+  <path d="M185 140 L200 125 L215 140 L210 140 L210 155 L190 155 L190 140 Z" fill="#ffffff20"/>
+  <text x="200" y="220" font-family="system-ui" font-size="13" fill="#ffffff40" text-anchor="middle">Sin imagen</text>
+</svg>`,
 
         "/src/main.tsx": `import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

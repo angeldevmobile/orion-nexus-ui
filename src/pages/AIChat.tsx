@@ -334,6 +334,22 @@ export default function AIChat() {
     mobile: 'w-[375px] h-[667px] mx-auto',
   }[device];
 
+  // Scale the iframe so desktop-layout content fits inside tablet/mobile frames.
+  // The iframe renders at DESKTOP_W px wide and is scaled down to the device width.
+  const DESKTOP_W = 1280;
+  const deviceW = device === 'mobile' ? 375 : device === 'tablet' ? 768 : DESKTOP_W;
+  const deviceH = device === 'mobile' ? 667 : device === 'tablet' ? 1024 : undefined;
+  const iframeScale = deviceW / DESKTOP_W;
+  const iframeStyle: React.CSSProperties = device === 'desktop'
+    ? { width: '100%', height: '100%', border: 'none' }
+    : {
+        width: `${DESKTOP_W}px`,
+        height: deviceH ? `${Math.round(deviceH / iframeScale)}px` : '100%',
+        border: 'none',
+        transform: `scale(${iframeScale})`,
+        transformOrigin: 'top left',
+      };
+
   const NAV_ITEMS = [
     { to: '/dashboard',  icon: Home,          label: 'Dashboard' },
     { to: '/ai-chat',    icon: MessageSquare, label: 'AI Chat' },
@@ -613,17 +629,15 @@ export default function AIChat() {
                       {previewUrl ? (
                         <iframe
                           src={previewUrl}
-                          className="w-full h-full border-0"
                           title="Vista Previa — Vite"
-                          style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
+                          style={iframeStyle}
                         />
                       ) : (
                         <iframe
                           srcDoc={previewHtml}
-                          className="w-full h-full border-0"
                           title="Vista Previa — HTML"
                           sandbox="allow-scripts allow-same-origin"
-                          style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
+                          style={iframeStyle}
                         />
                       )}
                     </div>

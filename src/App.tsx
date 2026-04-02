@@ -27,7 +27,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
 	const location = useLocation();
-	const hideHeader = ["/auth", "/auth/callback", "/ai-chat"].includes(location.pathname);
+	const hideHeader = ["/auth", "/auth/callback", "/ai-chat", "/editor"].includes(location.pathname);
 	return (
 		<>
 			{!hideHeader && <Header />}
