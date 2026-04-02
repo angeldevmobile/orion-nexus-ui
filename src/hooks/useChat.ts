@@ -140,6 +140,10 @@ const DEFAULT_INDEX_HTML = `<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Orion App</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="root"></div>
@@ -174,6 +178,11 @@ const DEFAULT_POSTCSS_CONFIG = `export default {
   plugins: { tailwindcss: {}, autoprefixer: {} },
 };`;
 
+const DEFAULT_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#6366f1"/>
+  <path d="M8 16 L16 8 L24 16 L16 24 Z" fill="white" opacity="0.9"/>
+</svg>`;
+
 function hasFile(files: { path: string }[], ...patterns: string[]): boolean {
   return files.some(f => patterns.some(p => f.path.includes(p)));
 }
@@ -193,6 +202,7 @@ function augmentFilesForWC(files: { path: string; content: string }[]): { path: 
   }
   if (!hasFile(out, 'tailwind.config')) out.push({ path: 'tailwind.config.js', content: DEFAULT_TAILWIND_CONFIG });
   if (!hasFile(out, 'postcss.config')) out.push({ path: 'postcss.config.js', content: DEFAULT_POSTCSS_CONFIG });
+  if (!hasFile(out, 'favicon')) out.push({ path: 'public/favicon.svg', content: DEFAULT_FAVICON_SVG });
   return out;
 }
 

@@ -13,9 +13,6 @@ import {
   Tablet,
   Trash2,
   ExternalLink,
-  Zap,
-  Package,
-  Server,
   CheckCircle2,
   Rocket,
   Upload,
@@ -100,68 +97,20 @@ function ChatBubble({ message }: { message: Message }) {
   );
 }
 
-// ─── Build progress bar ──────────────────────────────────────────────────────
-const BUILD_STEPS: { status: WcStatus; label: string; icon: React.ElementType; pct: number }[] = [
-  { status: 'booting',    label: 'Iniciando entorno',   icon: Zap,          pct: 20 },
-  { status: 'installing', label: 'Instalando paquetes', icon: Package,      pct: 55 },
-  { status: 'starting',   label: 'Arrancando servidor', icon: Server,       pct: 80 },
-  { status: 'ready',      label: 'Listo',               icon: CheckCircle2, pct: 100 },
-];
-
+// ─── Simple loading bar shown while WebContainer boots ───────────────────────
 const STATUS_PCT: Partial<Record<WcStatus, number>> = {
-  booting: 20, installing: 55, starting: 80, ready: 100,
+  booting: 25, installing: 60, starting: 85, ready: 100,
 };
 
 function BuildProgressBar({ status }: { status: WcStatus }) {
   if (status === 'idle') return null;
-
   const pct = STATUS_PCT[status] ?? 0;
-  const currentStepIdx = BUILD_STEPS.findIndex(s => s.status === status);
-
   return (
-    <div className="border-b border-border bg-card/80 backdrop-blur px-4 py-3 space-y-2">
-      {/* Step labels */}
-      <div className="flex items-center justify-between">
-        {BUILD_STEPS.map((step, idx) => {
-          const StepIcon = step.icon;
-          const done = currentStepIdx > idx;
-          const active = currentStepIdx === idx;
-          return (
-            <div key={step.status} className="flex flex-col items-center gap-1 flex-1">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
-                  done    ? 'bg-green-500/20 text-green-400 border border-green-500/40' :
-                  active  ? 'bg-primary/20 text-primary border border-primary/50 shadow-[0_0_10px] shadow-primary/30' :
-                            'bg-muted text-muted-foreground border border-border'
-                }`}
-              >
-                {active && status !== 'ready' ? (
-                  <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                ) : (
-                  <StepIcon className="w-3.5 h-3.5" />
-                )}
-              </div>
-              <span className={`text-[10px] text-center leading-tight ${
-                done ? 'text-green-400' : active ? 'text-primary' : 'text-muted-foreground'
-              }`}>
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Progress track */}
-      <div className="h-1 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-primary to-purple-500 rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      {status === 'error' && (
-        <p className="text-xs text-red-400 text-center">Error al iniciar el entorno — usando preview rápido</p>
-      )}
+    <div className="h-0.5 w-full bg-transparent overflow-hidden flex-shrink-0">
+      <div
+        className="h-full bg-gradient-to-r from-primary via-violet-500 to-cyan-400 rounded-full transition-all duration-700 ease-out"
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }
@@ -385,9 +334,6 @@ export default function AIChat() {
     mobile: 'w-[375px] h-[667px] mx-auto',
   }[device];
 
-  // Show WC booting skeleton after generation (not while AI is generating)
-  const showSkeleton = !sending && (previewHtml !== '' || wcStatus !== 'idle') && !previewUrl;
-
   const NAV_ITEMS = [
     { to: '/dashboard',  icon: Home,          label: 'Dashboard' },
     { to: '/ai-chat',    icon: MessageSquare, label: 'AI Chat' },
@@ -566,7 +512,7 @@ export default function AIChat() {
                 {wcStatus === 'ready' && (
                   <span className="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse" />
                 )}
-                {showSkeleton && (
+                {wcStatus !== 'idle' && wcStatus !== 'ready' && (
                   <span className="ml-1 w-2 h-2 rounded-full bg-yellow-400 inline-block animate-pulse" />
                 )}
               </TabsTrigger>
@@ -658,23 +604,33 @@ export default function AIChat() {
               )}
 
               <div className="flex-1 overflow-hidden relative">
-                {previewUrl ? (
+                {(previewUrl || previewHtml) ? (
                   <div className="h-full flex items-start justify-center overflow-auto bg-muted/20 p-4 animate-in fade-in duration-500 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
                     <div
                       className={`${deviceClass} bg-white rounded-lg border border-border shadow-2xl overflow-hidden transition-all duration-300`}
                       style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
                     >
-                      <iframe
-                        src={previewUrl}
-                        className="w-full h-full border-0"
-                        title="Vista Previa — Vite"
-                        style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
-                      />
+                      {previewUrl ? (
+                        <iframe
+                          src={previewUrl}
+                          className="w-full h-full border-0"
+                          title="Vista Previa — Vite"
+                          style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
+                        />
+                      ) : (
+                        <iframe
+                          srcDoc={previewHtml}
+                          className="w-full h-full border-0"
+                          title="Vista Previa — HTML"
+                          sandbox="allow-scripts allow-same-origin"
+                          style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
+                        />
+                      )}
                     </div>
                   </div>
                 ) : sending ? (
                   <GenerationProgress streamingContent={streamingContent} />
-                ) : showSkeleton ? (
+                ) : wcStatus !== 'idle' ? (
                   <PreviewLoadingSkeleton />
                 ) : (
                   <div className="h-full flex flex-col bg-[#0d0d14] relative overflow-hidden">

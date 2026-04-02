@@ -3,7 +3,34 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ChatMessage, ChatContext } from '../types/chatSession';
 import fs from 'fs/promises';
 import path from 'path';
-import constants from 'constants';
+
+// ── Centralised dependency versions ──────────────────────────────────────────
+// Update here when upgrading the stack; everything else references these values.
+const PKG = {
+  // npm ranges (used in package.json)
+  react:              '^18.3.1',
+  reactDom:           '^18.3.1',
+  typesReact:         '^18.3.1',
+  typesReactDom:      '^18.3.1',
+  vitejsPluginReact:  '^4.3.0',
+  autoprefixer:       '^10.4.19',
+  postcss:            '^8.4.38',
+  tailwindcss:        '^3.4.3',
+  typescript:         '^5.4.5',
+  vite:               '^5.2.11',
+  // exact versions for esm.sh CDN import map
+  esm: {
+    react:                  '18.3.1',
+    lucideReact:            '0.294.0',
+    recharts:               '2.12.7',
+    clsx:                   '2.1.1',
+    tailwindMerge:          '2.3.0',
+    classVarianceAuthority: '0.7.0',
+    framerMotion:           '11.2.10',
+    dateFns:                '3.6.0',
+    zod:                    '3.23.8',
+  },
+} as const;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -123,7 +150,7 @@ Responde con este JSON EXACTO (sin texto extra):
   "files": [
     {
       "path": "package.json",
-      "content": "{\\"name\\":\\"orion-project\\",\\"version\\":\\"1.0.0\\",\\"scripts\\":{\\"dev\\":\\"vite\\",\\"build\\":\\"vite build\\"},\\"dependencies\\":{\\"react\\":\\"^18.2.0\\",\\"react-dom\\":\\"^18.2.0\\"},\\"devDependencies\\":{\\"@types/react\\":\\"^18.2.0\\",\\"@types/react-dom\\":\\"^18.2.0\\",\\"@vitejs/plugin-react\\":\\"^4.0.0\\",\\"tailwindcss\\":\\"^3.3.0\\",\\"typescript\\":\\"^5.0.0\\",\\"vite\\":\\"^4.4.0\\"}}"
+      "content": ${JSON.stringify(JSON.stringify({ name: 'orion-project', version: '1.0.0', scripts: { dev: 'vite', build: 'vite build' }, dependencies: { react: PKG.react, 'react-dom': PKG.reactDom }, devDependencies: { '@types/react': PKG.typesReact, '@types/react-dom': PKG.typesReactDom, '@vitejs/plugin-react': PKG.vitejsPluginReact, tailwindcss: PKG.tailwindcss, typescript: PKG.typescript, vite: PKG.vite } }))}
     },
     {
       "path": "index.html",
@@ -234,82 +261,6 @@ REGLAS IMPORTANTES:
       console.error('AI Service Error:', error);
       throw error;
     }
-  }
-
-  // 🆕 Función auxiliar para convertir JSX básico a HTML estático
-  private convertJSXToHTML(reactCode: string): string {
-    try {
-      // Buscar el return statement del componente
-      const returnMatch = reactCode.match(/return\s*\(([\s\S]*?)\);?\s*\}/);
-      if (!returnMatch) {
-        return '<div style="padding: 2rem; text-align: center;">No se pudo renderizar el componente</div>';
-      }
-
-      let jsx = returnMatch[1].trim();
-
-      // Convertir className a class
-      jsx = jsx.replace(/className=/g, 'class=');
-
-      // Remover event handlers simples (onClick, onChange, etc.)
-      jsx = jsx.replace(/\s*on[A-Z]\w*=\{[^}]*\}/g, '');
-
-      // Convertir variables simples (ej: {count} -> <span id="count">0</span>)
-      jsx = jsx.replace(/\{(\w+)\}/g, '<span id="$1">0</span>');
-
-      // Limpiar fragmentos React
-      jsx = jsx.replace(/<>|<\/>/g, '');
-
-      return jsx;
-    } catch (error) {
-      console.error('Error converting JSX:', error);
-      return '<div style="padding: 2rem; text-align: center; color: #ef4444;">Error al renderizar el componente</div>';
-    }
-  }
-
-  private async generateResponseWithOpenAI(message: string, options: GenerateResponseOptions = {}): Promise<string> {
-    const { chatHistory = [], context } = options;
-
-    let systemMessage = `You are an AI assistant specialized in web development and coding. 
-    You help developers with React, Vue, Angular, TypeScript, JavaScript, and other web technologies.
-    Provide helpful, accurate, and concise responses in Spanish.`;
-
-    if (context?.projectId) {
-      systemMessage += `\n\nWorking on project ID: ${context.projectId}`;
-    }
-
-    if (context?.fileContext) {
-      systemMessage += `\n\nCurrent file context: ${context.fileContext}`;
-    }
-
-    if (context?.codeContext) {
-      systemMessage += `\n\nCode context: ${context.codeContext}`;
-    }
-
-    const messages: OpenAIMessage[] = [
-      { role: 'system', content: systemMessage }
-    ];
-
-    const recentHistory = chatHistory.slice(-10);
-    recentHistory.forEach(msg => {
-      messages.push({
-        role: msg.role,
-        content: msg.content
-      });
-    });
-
-    messages.push({
-      role: 'user',
-      content: message
-    });
-
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL_FAST || 'gpt-3.5-turbo',
-      messages,
-      max_completion_tokens: 1500,
-      // 🔥 REMOVIDO: temperature (el modelo solo acepta el valor por defecto)
-    });
-
-    return completion.choices[0]?.message?.content || 'No pude generar una respuesta.';
   }
 
   async generateCode(options: GenerateCodeOptions): Promise<string> {
@@ -791,20 +742,21 @@ try {
 }`;
 
     // Import map: maps bare specifiers to esm.sh ES module URLs
+    const R = PKG.esm.react;
     const importMap = JSON.stringify({
       imports: {
-        "react":                    "https://esm.sh/react@18.2.0",
-        "react/jsx-runtime":        "https://esm.sh/react@18.2.0/jsx-runtime",
-        "react-dom":                "https://esm.sh/react-dom@18.2.0",
-        "react-dom/client":         "https://esm.sh/react-dom@18.2.0/client",
-        "lucide-react":             "https://esm.sh/lucide-react@0.294.0",
-        "recharts":                 "https://esm.sh/recharts@2.12.7",
-        "clsx":                     "https://esm.sh/clsx@2.1.1",
-        "tailwind-merge":           "https://esm.sh/tailwind-merge@2.3.0",
-        "class-variance-authority": "https://esm.sh/class-variance-authority@0.7.0",
-        "framer-motion":            "https://esm.sh/framer-motion@11.2.10",
-        "date-fns":                 "https://esm.sh/date-fns@3.6.0",
-        "zod":                      "https://esm.sh/zod@3.23.8",
+        "react":                    `https://esm.sh/react@${R}`,
+        "react/jsx-runtime":        `https://esm.sh/react@${R}/jsx-runtime`,
+        "react-dom":                `https://esm.sh/react-dom@${R}`,
+        "react-dom/client":         `https://esm.sh/react-dom@${R}/client`,
+        "lucide-react":             `https://esm.sh/lucide-react@${PKG.esm.lucideReact}`,
+        "recharts":                 `https://esm.sh/recharts@${PKG.esm.recharts}`,
+        "clsx":                     `https://esm.sh/clsx@${PKG.esm.clsx}`,
+        "tailwind-merge":           `https://esm.sh/tailwind-merge@${PKG.esm.tailwindMerge}`,
+        "class-variance-authority": `https://esm.sh/class-variance-authority@${PKG.esm.classVarianceAuthority}`,
+        "framer-motion":            `https://esm.sh/framer-motion@${PKG.esm.framerMotion}`,
+        "date-fns":                 `https://esm.sh/date-fns@${PKG.esm.dateFns}`,
+        "zod":                      `https://esm.sh/zod@${PKG.esm.zod}`,
       }
     }, null, 2);
 
@@ -872,6 +824,8 @@ REGLAS:
 - Responde **SOLO** con JSON (sin texto extra).
 - \`previewHtml\` debe ser un HTML completo que cargue Tailwind y React vía CDN para render directo en un iframe.
 - \`files\` deben ser listos para un proyecto React+Vite+TS.
+
+Solicitud del usuario: ${prompt}
 `;
 
     const raw = await this.generateCode({
@@ -1179,18 +1133,18 @@ El proyecto debe ser completamente funcional y listo para ejecutar con "npm inst
             preview: 'vite preview'
           },
           dependencies: {
-            react: '^18.3.1',
-            'react-dom': '^18.3.1'
+            react: PKG.react,
+            'react-dom': PKG.reactDom,
           },
           devDependencies: {
-            '@types/react': '^18.3.1',
-            '@types/react-dom': '^18.3.1',
-            '@vitejs/plugin-react': '^4.3.0',
-            autoprefixer: '^10.4.19',
-            postcss: '^8.4.38',
-            tailwindcss: '^3.4.3',
-            typescript: '^5.4.5',
-            vite: '^5.2.11'
+            '@types/react': PKG.typesReact,
+            '@types/react-dom': PKG.typesReactDom,
+            '@vitejs/plugin-react': PKG.vitejsPluginReact,
+            autoprefixer: PKG.autoprefixer,
+            postcss: PKG.postcss,
+            tailwindcss: PKG.tailwindcss,
+            typescript: PKG.typescript,
+            vite: PKG.vite,
           }
         }, null, 2),
 
