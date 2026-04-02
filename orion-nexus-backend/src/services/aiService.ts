@@ -573,7 +573,8 @@ REGLAS IMPORTANTES:
       // Remove `: Type` annotations on function params and vars (simple cases)
       .replace(/:\s*(?:React\.FC|FC|React\.ReactNode|ReactNode|React\.CSSProperties|string|number|boolean|void|any|never|unknown|null|undefined|Date|object)(?:\[\])?(?=\s*[,)=;{])/g, '')
       // Remove generic type params from function calls: useState<string>( → useState(
-      .replace(/<[A-Z][A-Za-z0-9_, \[\]|&.]*>/g, '')
+      // Uses (\w) lookbehind so JSX tags like <PieChart> are NOT stripped (they have no preceding identifier)
+      .replace(/(\w)<[A-Z][A-Za-z0-9_, \[\]|&.]*>/g, '$1')
       // Remove `as Type` casts
       .replace(/\bas\s+[A-Z][A-Za-z0-9_<>, \[\]|&.]*/g, '')
       // Remove non-null assertions
@@ -675,17 +676,22 @@ REGLAS IMPORTANTES:
     // Sort so dependencies come before their consumers
     const sorted = this.sortFilesByDependency(sourceFiles);
 
-    // Build the bundled script: strip imports/exports, keep declarations
+    // Build the bundled script: strip imports/exports, wrap each file in IIFE
+    // to isolate local helpers (e.g. CustomTooltip defined in multiple files)
     const bundledParts = sorted.map(f => {
-      const stripped = this.stripTypescript(f.content)
-        // Remove ALL import statements (local and npm — all globals come from UMD scripts)
+      const isApp = f.path.includes('App.tsx') || f.path.includes('App.jsx');
+
+      // Babel (typescript preset) handles TS stripping; we only need to remove
+      // ES module import/export syntax since there is no bundler in the browser.
+      const stripped = f.content
+        // Remove ALL import statements
         .replace(/^\s*import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*\n?/gm, '')
         .replace(/^\s*import\s+['"][^'"]+['"];?\s*\n?/gm, '')
         // export default function Foo → function Foo
         .replace(/export\s+default\s+function\s+/g, 'function ')
         // export default class Foo → class Foo
         .replace(/export\s+default\s+class\s+/g, 'class ')
-        // export default ArrowComponent → keep as-is
+        // export default ArrowComponent → mark for IIFE return
         .replace(/export\s+default\s+/g, '// __default__ ')
         // export { Foo, Bar } → remove
         .replace(/^\s*export\s+\{[^}]*\};?\s*\n?/gm, '')
@@ -693,7 +699,19 @@ REGLAS IMPORTANTES:
         .replace(/^(\s*)export\s+(const|let|var|function|class)\s+/gm, '$1$2 ')
         .trim();
 
-      return `// ── ${f.path} ──\n${stripped}`;
+      // App.tsx: no IIFE — rendered directly
+      if (isApp) return `// ── ${f.path} ──\n${stripped}`;
+
+      // Find the main exported identifier
+      const defaultMark = stripped.match(/\/\/ __default__ ([A-Z][A-Za-z0-9_]*)/);
+      const fnDecl = stripped.match(/^function ([A-Z][A-Za-z0-9_]*)\s*\(/m);
+      const exportName = defaultMark?.[1] ?? fnDecl?.[1];
+
+      if (!exportName) return `// ── ${f.path} ──\n${stripped}`;
+
+      // Wrap in IIFE: internal helpers stay scoped, exported component leaks out via var
+      const body = stripped.replace(/\/\/ __default__ [A-Za-z0-9_]*/g, '').trim();
+      return `// ── ${f.path} ──\nvar ${exportName} = (() => {\n${body}\n  return ${exportName};\n})();`;
     });
 
     const bundledCode = bundledParts.join('\n\n');
@@ -739,7 +757,7 @@ try {
 <body>
   <div id="root"></div>
   <div id="__preview_error"></div>
-  <script type="text/babel" data-presets="react">
+  <script type="text/babel" data-presets="react,typescript">
     const { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, useReducer } = React;
 
 ${bundledCode}

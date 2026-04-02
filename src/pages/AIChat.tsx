@@ -524,11 +524,19 @@ export default function AIChat() {
                     <Download className="w-3 h-3 mr-1" />
                     Exportar
                   </Button>
-                  {previewUrl && (
+                  {(previewUrl || previewHtml) && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(previewUrl, '_blank')}
+                      onClick={() => {
+                        if (previewHtml) {
+                          const blob = new Blob([previewHtml], { type: 'text/html' });
+                          const url = URL.createObjectURL(blob);
+                          window.open(url, '_blank');
+                        } else {
+                          window.open(previewUrl, '_blank');
+                        }
+                      }}
                       className="text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
                       title="Abrir preview en nueva pestaña"
                     >

@@ -74,11 +74,16 @@ export class FileManager {
   }
 
   async createFolder(path: string): Promise<void> {
-    try {
-      await fs.mkdir(path, { recursive: true });
-      console.log(`✅ Folder created: ${path}`);
-    } catch (error) {
-      // Ignorar si la carpeta ya existe
+    const parts = path.split('/').filter(p => p !== '');
+    let current = '';
+    for (const part of parts) {
+      current += `/${part}`;
+      try {
+        await fs.mkdir(current);
+        console.log(`✅ Folder created: ${current}`);
+      } catch {
+        // Ignore — already exists
+      }
     }
   }
 
