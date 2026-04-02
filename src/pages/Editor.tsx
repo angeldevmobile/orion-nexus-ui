@@ -16,6 +16,9 @@ import {
 	Settings,
 	Rocket,
 	Upload,
+	Plus,
+	Sparkles,
+	Trash2,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -57,49 +60,43 @@ export default function Editor() {
 		files,
 		activeFile,
 		setActiveFile: setProjectActiveFile,
-		updateFileContent,
 	} = useProject();
+
 	const [localActiveFile, setLocalActiveFile] = useState(activeFile);
 	const [configOpen, setConfigOpen] = useState(false);
 	const [editedContent, setEditedContent] = useState("");
 	const [tree, setTree] = useState<FileNode[]>([]);
+	const [hasProject, setHasProject] = useState<boolean | null>(null); // null = loading
 	const [consoleLines, setConsoleLines] = useState<string[]>([]);
 	const [selectedTemplate, setSelectedTemplate] = useState<string>("react-vite");
-	const [previewUrl, setPreviewUrl] = useState<string>("");
+	const [creating, setCreating] = useState(false);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const { toast } = useToast();
 	const location = useLocation();
 	const navigate = useNavigate();
 
-	// Create new project from selected template
-	const handleCreateProject = async () => {
-		setConsoleLines(["📦 Creando proyecto..."]);
-		try {
-			await fileManager.clearDirectory("/");
-			const template = PROJECT_TEMPLATES[selectedTemplate];
-			if (!template) throw new Error(`Template ${selectedTemplate} no encontrado`);
-
-			setConsoleLines((lines) => [...lines, `${template.icon} Usando template: ${template.name}`]);
-			const projectFiles = await template.createProject();
-
-			for (const [path, content] of Object.entries(projectFiles)) {
-				await fileManager.writeFile(path, content);
-				setConsoleLines((lines) => [...lines, `✅ Creado: ${path}`]);
+	// On mount: check if a project already exists in the virtual FS
+	useEffect(() => {
+		(async () => {
+			try {
+				const entries = await fileManager.listDir("/");
+				setHasProject(entries.length > 0);
+				if (entries.length > 0) {
+					const allPaths = await getAllFilePaths("/");
+					setTree(buildFileTree(allPaths));
+				}
+			} catch {
+				setHasProject(false);
 			}
+		})();
+	}, []);
 
-			await reloadTree();
-			setLocalActiveFile("/src/App.tsx");
-			setProjectActiveFile("/src/App.tsx");
-			setConsoleLines((lines) => [
-				...lines,
-				`🚀 ¡Proyecto ${template.name} creado!`,
-				"💡 Haz clic en 'Ejecutar' para instalar dependencias",
-			]);
-			toast({ title: "Proyecto Creado", description: `${template.name} listo para desarrollar` });
-		} catch (error) {
-			setConsoleLines((lines) => [...lines, `❌ Error: ${error}`]);
-		}
-	};
+	// Sync active file content
+	useEffect(() => { setLocalActiveFile(activeFile); }, [activeFile]);
+	useEffect(() => {
+		const file = files.find((f) => f.name === localActiveFile);
+		if (file) setEditedContent(file.content);
+	}, [localActiveFile, files]);
 
 	const reloadTree = async () => {
 		try {
@@ -135,7 +132,6 @@ export default function Editor() {
 		paths.forEach((path) => {
 			const parts = path.split("/").filter(Boolean);
 			let current: Record<string, TreeNode> = root;
-
 			parts.forEach((part, index) => {
 				if (!current[part]) {
 					const fullPath = "/" + parts.slice(0, index + 1).join("/");
@@ -143,8 +139,7 @@ export default function Editor() {
 						index === parts.length - 1 &&
 						!paths.some((p) => p.startsWith(fullPath + "/") && p !== fullPath);
 					current[part] = {
-						name: part,
-						path: fullPath,
+						name: part, path: fullPath,
 						type: isFile ? "file" : "folder",
 						children: isFile ? undefined : {},
 					};
@@ -155,25 +150,56 @@ export default function Editor() {
 			});
 		});
 
-		const convertToArray = (obj: Record<string, TreeNode>): FileNode[] =>
-			Object.values(obj).map((node) => ({
-				name: node.name,
-				path: node.path,
-				type: node.type,
-				...(node.children ? { children: convertToArray(node.children) } : {}),
+		const toArray = (obj: Record<string, TreeNode>): FileNode[] =>
+			Object.values(obj).map((n) => ({
+				name: n.name, path: n.path, type: n.type,
+				...(n.children ? { children: toArray(n.children) } : {}),
 			}));
 
-		return convertToArray(root);
+		return toArray(root);
 	};
 
-	useEffect(() => { setLocalActiveFile(activeFile); }, [activeFile]);
+	const handleCreateProject = async () => {
+		setCreating(true);
+		setConsoleLines(["📦 Creando proyecto..."]);
+		try {
+			await fileManager.clearDirectory("/");
+			const template = PROJECT_TEMPLATES[selectedTemplate];
+			if (!template) throw new Error(`Template ${selectedTemplate} no encontrado`);
 
-	useEffect(() => {
-		const file = files.find((f) => f.name === localActiveFile);
-		if (file) setEditedContent(file.content);
-	}, [localActiveFile, files]);
+			setConsoleLines((l) => [...l, `${(template as ProjectTemplate).icon} Usando template: ${(template as ProjectTemplate).name}`]);
+			const projectFiles = await (template as ProjectTemplate).createProject();
 
-	useEffect(() => { reloadTree(); }, []);
+			for (const [path, content] of Object.entries(projectFiles)) {
+				await fileManager.writeFile(path, content);
+				setConsoleLines((l) => [...l, `✅ ${path}`]);
+			}
+
+			await reloadTree();
+			const firstFile = "/src/App.tsx";
+			setLocalActiveFile(firstFile);
+			setProjectActiveFile(firstFile);
+			const content = await fileManager.readFile(firstFile);
+			setEditedContent(content);
+
+			setHasProject(true);
+			toast({ title: "Proyecto creado", description: `${(template as ProjectTemplate).name} listo` });
+		} catch (error) {
+			setConsoleLines((l) => [...l, `❌ Error: ${error}`]);
+			toast({ title: "Error", description: String(error), variant: "destructive" });
+		} finally {
+			setCreating(false);
+		}
+	};
+
+	const handleNewProject = async () => {
+		await fileManager.clearDirectory("/");
+		setTree([]);
+		setEditedContent("");
+		setLocalActiveFile("");
+		setConsoleLines([]);
+		setHasProject(false);
+	};
 
 	const handleFileSelect = async (path: string) => {
 		setLocalActiveFile(path);
@@ -184,7 +210,7 @@ export default function Editor() {
 
 	const handleSave = async () => {
 		await fileManager.writeFile(localActiveFile, editedContent);
-		toast({ title: "Guardado", description: `${localActiveFile} guardado correctamente.` });
+		toast({ title: "Guardado", description: `${localActiveFile} guardado.` });
 		await reloadTree();
 	};
 
@@ -202,9 +228,9 @@ export default function Editor() {
 		setConsoleLines([]);
 		const snapshot = await dumpFsToJson();
 		await initWebContainer(snapshot);
-		await installDependencies((log) => setConsoleLines((lines) => [...lines, log]));
+		await installDependencies((log) => setConsoleLines((l) => [...l, log]));
 		await runDevServer((log) => {
-			setConsoleLines((lines) => [...lines, log]);
+			setConsoleLines((l) => [...l, log]);
 			if (log.startsWith("🌍 Servidor listo en ")) {
 				const url = log.split("en ")[1];
 				if (iframeRef.current) iframeRef.current.src = url;
@@ -212,10 +238,11 @@ export default function Editor() {
 		});
 	};
 
-	return (
-		<div className="h-screen bg-background flex overflow-hidden">
-
-			{/* ── Icon sidebar ─────────────────────────────────────────── */}
+	// ── Sidebar (shared between both views) ─────────────────────────────────────
+	const Sidebar = () => {
+		const user = authService.getUser();
+		const initials = (user?.username ?? user?.email ?? "?").slice(0, 2).toUpperCase();
+		return (
 			<aside className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border bg-card">
 				<Link
 					to="/"
@@ -242,22 +269,15 @@ export default function Editor() {
 					))}
 				</nav>
 
-				{/* User avatar */}
-				{(() => {
-					const user = authService.getUser();
-					const initials = (user?.username ?? user?.email ?? "?").slice(0, 2).toUpperCase();
-					return (
-						<div
-							className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
-							title={user?.username ?? user?.email ?? "Usuario"}
-							onClick={() => navigate("/settings")}
-						>
-							{user?.avatar
-								? <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
-								: initials}
-						</div>
-					);
-				})()}
+				<div
+					className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
+					title={user?.username ?? user?.email ?? "Usuario"}
+					onClick={() => navigate("/settings")}
+				>
+					{user?.avatar
+						? <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
+						: initials}
+				</div>
 
 				<Button
 					size="sm"
@@ -268,33 +288,112 @@ export default function Editor() {
 					<Upload className="w-4 h-4" />
 				</Button>
 			</aside>
+		);
+	};
 
-			{/* ── File Explorer ─────────────────────────────────────────── */}
+	// ── Loading state ────────────────────────────────────────────────────────────
+	if (hasProject === null) {
+		return (
+			<div className="h-screen bg-background flex overflow-hidden">
+				<Sidebar />
+				<div className="flex-1 flex items-center justify-center">
+					<div className="flex items-center gap-3 text-muted-foreground">
+						<div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+						<span className="text-sm">Cargando espacio de trabajo...</span>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// ── Empty state: no active project → redirect to creation flow ──────────────
+	if (!hasProject) {
+		return (
+			<div className="h-screen bg-background flex overflow-hidden">
+				<Sidebar />
+
+				<div className="flex-1 flex items-center justify-center p-8">
+					<div className="w-full max-w-xs text-center space-y-6">
+						<div className="w-16 h-16 rounded-2xl bg-muted/30 border border-border flex items-center justify-center mx-auto">
+							<Code2 className="w-8 h-8 text-muted-foreground/50" />
+						</div>
+
+						<div className="space-y-2">
+							<h1 className="font-heading font-semibold text-lg">No hay proyecto activo</h1>
+							<p className="text-sm text-muted-foreground leading-relaxed">
+								Crea o abre un proyecto para empezar a editar código.
+							</p>
+						</div>
+
+						<div className="space-y-2.5">
+							<Button
+								className="w-full bg-primary hover:bg-primary/90"
+								onClick={() => navigate("/projects")}
+							>
+								<FolderOpen className="w-4 h-4 mr-2" />
+								Mis Proyectos
+							</Button>
+							<Button
+								variant="outline"
+								className="w-full"
+								onClick={() => navigate("/ai-chat")}
+							>
+								<Sparkles className="w-4 h-4 mr-2 text-primary" />
+								Generar con IA
+							</Button>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// ── Full editor (project exists) ─────────────────────────────────────────────
+	return (
+		<div className="h-screen bg-background flex overflow-hidden">
+			<Sidebar />
+
+			{/* File Explorer */}
 			<div className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">
-				<div className="px-3 py-3 border-b border-border">
-					<h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
-						<FileCode className="w-3.5 h-3.5" />
-						Archivos
-					</h2>
+				<div className="px-3 py-3 border-b border-border space-y-2">
+					<div className="flex items-center justify-between">
+						<h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+							<FileCode className="w-3.5 h-3.5" />
+							Archivos
+						</h2>
+						<button
+							title="Cerrar proyecto"
+							onClick={handleNewProject}
+							className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+						>
+							<Trash2 className="w-3.5 h-3.5" />
+						</button>
+					</div>
+
+					{/* New project from template */}
 					<select
 						value={selectedTemplate}
 						onChange={(e) => setSelectedTemplate(e.target.value)}
-						className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded-lg mb-2"
+						className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded-lg"
 					>
-						{Object.entries(PROJECT_TEMPLATES).map(([key, template]) => (
+						{Object.entries(PROJECT_TEMPLATES).map(([key, tpl]) => (
 							<option key={key} value={key}>
-								{(template as ProjectTemplate).icon} {(template as ProjectTemplate).name}
+								{(tpl as ProjectTemplate).icon} {(tpl as ProjectTemplate).name}
 							</option>
 						))}
 					</select>
 					<Button
 						size="sm"
 						variant="outline"
-						className="w-full text-xs h-7"
+						className="w-full h-7 text-xs"
 						onClick={handleCreateProject}
+						disabled={creating}
 					>
-						<Layout className="w-3 h-3 mr-1.5" />
-						Crear Proyecto
+						{creating ? (
+							<><div className="w-3 h-3 rounded-full border-2 border-muted-foreground/40 border-t-foreground animate-spin mr-1.5" />Creando...</>
+						) : (
+							<><Layout className="w-3 h-3 mr-1.5" />Nuevo Proyecto</>
+						)}
 					</Button>
 				</div>
 
@@ -308,15 +407,16 @@ export default function Editor() {
 				</div>
 			</div>
 
-			{/* ── Editor area ───────────────────────────────────────────── */}
+			{/* Editor area */}
 			<div className="flex-1 flex flex-col min-w-0">
-
 				{/* Top bar */}
 				<div className="flex-shrink-0 border-b border-border px-4 py-2.5 bg-card flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<Code2 className="w-4 h-4 text-primary" />
 						<span className="font-heading font-semibold text-sm">Editor</span>
-						<Badge variant="secondary" className="text-xs font-mono">{localActiveFile}</Badge>
+						{localActiveFile && (
+							<Badge variant="secondary" className="text-xs font-mono">{localActiveFile}</Badge>
+						)}
 					</div>
 
 					<div className="flex items-center gap-2">
@@ -414,11 +514,20 @@ export default function Editor() {
 					</div>
 
 					<TabsContent value="code" className="flex-1 m-0 overflow-hidden">
-						<MonacoEditor
-							filePath={localActiveFile}
-							code={editedContent}
-							onChange={setEditedContent}
-						/>
+						{localActiveFile ? (
+							<MonacoEditor
+								filePath={localActiveFile}
+								code={editedContent}
+								onChange={setEditedContent}
+							/>
+						) : (
+							<div className="h-full flex items-center justify-center text-muted-foreground">
+								<div className="text-center space-y-2">
+									<FileCode className="w-10 h-10 mx-auto opacity-30" />
+									<p className="text-sm">Selecciona un archivo para editar</p>
+								</div>
+							</div>
+						)}
 					</TabsContent>
 
 					<TabsContent value="preview" className="flex-1 m-0 overflow-hidden">
