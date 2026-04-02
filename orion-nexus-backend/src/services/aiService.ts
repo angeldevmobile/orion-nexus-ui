@@ -563,23 +563,22 @@ REGLAS IMPORTANTES:
    * Strips TypeScript-only syntax that Babel standalone can't handle.
    */
   private stripTypescript(code: string): string {
-    return code
-      // Remove interface declarations (multiline)
-      .replace(/^\s*(?:export\s+)?interface\s+\w[\w<>, \[\]|&\s]*\{[^}]*\}/gm, '')
-      // Remove type alias declarations
-      .replace(/^\s*(?:export\s+)?type\s+\w+\s*=\s*[\s\S]*?;/gm, '')
-      // Remove inline TypeScript type annotations on props destructuring: { foo }: MyType → { foo }
-      .replace(/\}\s*:\s*\w[\w.<>, \[\]|&]*(?=\s*[\)={])/g, '}')
-      // Remove `: Type` annotations on function params and vars (simple cases)
-      .replace(/:\s*(?:React\.FC|FC|React\.ReactNode|ReactNode|React\.CSSProperties|string|number|boolean|void|any|never|unknown|null|undefined|Date|object)(?:\[\])?(?=\s*[,)=;{])/g, '')
-      // Remove generic type params from function calls: useState<string>( → useState(
-      // Uses (\w) lookbehind so JSX tags like <PieChart> are NOT stripped (they have no preceding identifier)
-      .replace(/(\w)<[A-Z][A-Za-z0-9_, \[\]|&.]*>/g, '$1')
-      // Remove `as Type` casts
-      .replace(/\bas\s+[A-Z][A-Za-z0-9_<>, \[\]|&.]*/g, '')
-      // Remove non-null assertions
-      .replace(/!/g, '')
-      .trim();
+    try {
+      // Use the real TypeScript compiler to strip types — preserves JSX intact.
+      const ts = require('typescript') as typeof import('typescript');
+      const result = ts.transpileModule(code, {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          jsx: ts.JsxEmit.Preserve,
+          target: ts.ScriptTarget.ES2020,
+          removeComments: false,
+        },
+      });
+      return result.outputText;
+    } catch {
+      // Fallback: return original code unchanged so Babel handles it
+      return code;
+    }
   }
 
   /**
@@ -646,8 +645,8 @@ REGLAS IMPORTANTES:
 
   /**
    * Builds a single self-contained HTML document that runs all project files
-   * bundled into one <script type="text/babel"> block.
-   * This is the "instant" Babel preview shown while WebContainer boots.
+   * using Import Maps + esm.sh so real ES module imports work in the browser.
+   * This is the "instant" preview shown while WebContainer boots.
    */
   private generateLovablePreviewHTML(files: { path: string; content: string }[]): string {
     // ── CSS files → inlined as <style> tags ───────────────────────────────────
@@ -660,7 +659,7 @@ REGLAS IMPORTANTES:
       .map(f => `/* ${f.path} */\n${f.content}`)
       .join('\n\n');
 
-    // ── JS/TSX source files → bundled into one Babel script ──────────────────
+    // ── JS/TSX source files → bundled into one Babel module script ─────────────
     const sourceFiles = files.filter(f =>
       (f.path.endsWith('.tsx') || f.path.endsWith('.jsx') || f.path.endsWith('.ts')) &&
       !f.path.includes('main.tsx') &&
@@ -676,30 +675,90 @@ REGLAS IMPORTANTES:
     // Sort so dependencies come before their consumers
     const sorted = this.sortFilesByDependency(sourceFiles);
 
-    // Build the bundled script: strip imports/exports, wrap each file in IIFE
-    // to isolate local helpers (e.g. CustomTooltip defined in multiple files)
+    // ── Collect all external (non-relative) imports from every file ────────────
+    // We re-emit them as real ESM imports at the top of the bundle so the
+    // import map can resolve them to esm.sh URLs.
+    const externalNamed = new Map<string, Set<string>>();   // pkg → named exports used
+    const externalDefault = new Map<string, string>();       // pkg → default import name
+
+    const SKIP_PKGS = new Set(['react', 'react-dom', 'react-dom/client']);
+
+    for (const f of sorted) {
+      // named:  import { A, B as C } from 'pkg'
+      const namedRe = /import\s*\{([^}]+)\}\s*from\s*['"]([^./][^'"]*)['"]/g;
+      let m: RegExpExecArray | null;
+      while ((m = namedRe.exec(f.content)) !== null) {
+        const pkg = m[2];
+        if (SKIP_PKGS.has(pkg)) continue;
+        const names = m[1]
+          .split(',')
+          .map(n => n.replace(/\s+as\s+\w+/, '').trim())
+          .filter(Boolean);
+        if (!externalNamed.has(pkg)) externalNamed.set(pkg, new Set());
+        names.forEach(n => externalNamed.get(pkg)!.add(n));
+      }
+      // default: import Foo from 'pkg'
+      const defRe = /import\s+(\w+)\s*,?\s*(?:\{[^}]*\})?\s*from\s*['"]([^./][^'"]*)['"]/g;
+      while ((m = defRe.exec(f.content)) !== null) {
+        if (!SKIP_PKGS.has(m[2])) externalDefault.set(m[2], m[1]);
+      }
+    }
+
+    // ── Build the consolidated ESM import block ────────────────────────────────
+    const HOOK_NAMES = ['useState', 'useEffect', 'useRef', 'useCallback', 'useMemo',
+                        'createContext', 'useContext', 'useReducer', 'useId',
+                        'useLayoutEffect', 'useTransition', 'useDeferredValue'];
+    const reactNamed = externalNamed.get('react') ?? new Set<string>();
+    const allReactNamed = new Set([...HOOK_NAMES, ...reactNamed]);
+
+    const esmImports: string[] = [
+      `import React, { ${[...allReactNamed].join(', ')} } from 'react';`,
+      `import { createRoot } from 'react-dom/client';`,
+    ];
+
+    // lucide-react
+    const lucideIcons = externalNamed.get('lucide-react');
+    if (lucideIcons && lucideIcons.size > 0) {
+      esmImports.push(`import { ${[...lucideIcons].join(', ')} } from 'lucide-react';`);
+    }
+
+    // recharts
+    const rechartsItems = externalNamed.get('recharts');
+    if (rechartsItems && rechartsItems.size > 0) {
+      esmImports.push(`import { ${[...rechartsItems].join(', ')} } from 'recharts';`);
+    }
+
+    // any other external package
+    for (const [pkg, names] of externalNamed) {
+      if (pkg === 'lucide-react' || pkg === 'recharts') continue;
+      if (SKIP_PKGS.has(pkg)) continue;
+      const defImport = externalDefault.get(pkg);
+      const namedPart = names.size > 0 ? `{ ${[...names].join(', ')} }` : '';
+      const parts = [defImport, namedPart].filter(Boolean).join(', ');
+      if (parts) esmImports.push(`import ${parts} from '${pkg}';`);
+    }
+
+    // ── Bundle each file: strip ALL imports (we re-added them above), strip exports ──
     const bundledParts = sorted.map(f => {
       const isApp = f.path.includes('App.tsx') || f.path.includes('App.jsx');
 
-      // Babel (typescript preset) handles TS stripping; we only need to remove
-      // ES module import/export syntax since there is no bundler in the browser.
-      const stripped = f.content
-        // Remove ALL import statements
+      const stripped = this.stripTypescript(f.content)
+        // Remove all import statements (both named and side-effect)
         .replace(/^\s*import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*\n?/gm, '')
         .replace(/^\s*import\s+['"][^'"]+['"];?\s*\n?/gm, '')
         // export default function Foo → function Foo
         .replace(/export\s+default\s+function\s+/g, 'function ')
         // export default class Foo → class Foo
         .replace(/export\s+default\s+class\s+/g, 'class ')
-        // export default ArrowComponent → mark for IIFE return
+        // export default ArrowExpression → mark for IIFE return
         .replace(/export\s+default\s+/g, '// __default__ ')
         // export { Foo, Bar } → remove
         .replace(/^\s*export\s+\{[^}]*\};?\s*\n?/gm, '')
-        // export const/function/class → const/function/class
+        // export const/let/var/function/class → strip keyword
         .replace(/^(\s*)export\s+(const|let|var|function|class)\s+/gm, '$1$2 ')
         .trim();
 
-      // App.tsx: no IIFE — rendered directly
+      // App.tsx is the root — no IIFE needed, rendered directly
       if (isApp) return `// ── ${f.path} ──\n${stripped}`;
 
       // Find the main exported identifier
@@ -709,14 +768,14 @@ REGLAS IMPORTANTES:
 
       if (!exportName) return `// ── ${f.path} ──\n${stripped}`;
 
-      // Wrap in IIFE: internal helpers stay scoped, exported component leaks out via var
+      // Wrap in IIFE so helpers stay scoped; exported name leaks out as var
       const body = stripped.replace(/\/\/ __default__ [A-Za-z0-9_]*/g, '').trim();
       return `// ── ${f.path} ──\nvar ${exportName} = (() => {\n${body}\n  return ${exportName};\n})();`;
     });
 
     const bundledCode = bundledParts.join('\n\n');
 
-    // Find the App component name to render
+    // Find root component name
     const appFile = sorted.find(f => f.path.includes('App.tsx') || f.path.includes('App.jsx'));
     const appCode = appFile ? this.stripTypescript(appFile.content) : '';
     const fnMatch = appCode.match(/(?:export\s+default\s+)?function\s+([A-Z][A-Za-z0-9_]*)\s*\(/);
@@ -725,13 +784,29 @@ REGLAS IMPORTANTES:
 
     const renderCall = `
 try {
-  ReactDOM.createRoot(document.getElementById('root')).render(
-    React.createElement(${componentName})
-  );
+  createRoot(document.getElementById('root')).render(React.createElement(${componentName}));
 } catch(e) {
-  document.getElementById('__preview_error').style.display = 'block';
-  document.getElementById('__preview_error').textContent = e.message;
+  const __el = document.getElementById('__preview_error');
+  if (__el) { __el.style.display = 'block'; __el.textContent = e.message; }
 }`;
+
+    // Import map: maps bare specifiers to esm.sh ES module URLs
+    const importMap = JSON.stringify({
+      imports: {
+        "react":                    "https://esm.sh/react@18.2.0",
+        "react/jsx-runtime":        "https://esm.sh/react@18.2.0/jsx-runtime",
+        "react-dom":                "https://esm.sh/react-dom@18.2.0",
+        "react-dom/client":         "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react":             "https://esm.sh/lucide-react@0.294.0",
+        "recharts":                 "https://esm.sh/recharts@2.12.7",
+        "clsx":                     "https://esm.sh/clsx@2.1.1",
+        "tailwind-merge":           "https://esm.sh/tailwind-merge@2.3.0",
+        "class-variance-authority": "https://esm.sh/class-variance-authority@0.7.0",
+        "framer-motion":            "https://esm.sh/framer-motion@11.2.10",
+        "date-fns":                 "https://esm.sh/date-fns@3.6.0",
+        "zod":                      "https://esm.sh/zod@3.23.8",
+      }
+    }, null, 2);
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -739,8 +814,9 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orion Preview</title>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script type="importmap">
+  ${importMap}
+  </script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -757,8 +833,8 @@ try {
 <body>
   <div id="root"></div>
   <div id="__preview_error"></div>
-  <script type="text/babel" data-presets="react,typescript">
-    const { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, useReducer } = React;
+  <script type="text/babel" data-type="module" data-presets="react,typescript">
+${esmImports.join('\n')}
 
 ${bundledCode}
 
@@ -766,8 +842,8 @@ ${renderCall}
   </script>
   <script>
     window.addEventListener('error', function(e) {
-      var el = document.getElementById('__preview_error');
-      if (el) { el.style.display = 'block'; el.textContent = e.message; }
+      var __el = document.getElementById('__preview_error');
+      if (__el) { __el.style.display = 'block'; __el.textContent = e.message; }
     });
   </script>
 </body>

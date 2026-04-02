@@ -1,7 +1,5 @@
-import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Send,
@@ -19,11 +17,19 @@ import {
   Package,
   Server,
   CheckCircle2,
+  Rocket,
+  Upload,
+  Home,
+  MessageSquare,
+  FolderOpen,
+  Settings,
+  ChevronRight,
 } from "lucide-react";
+import { authService } from "@/service/AuthService";
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChat, Message, WcStatus } from "@/hooks/useChat";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -31,71 +37,19 @@ import { dumpFsToJson } from "@/editor/fileSystem/lightningFsAdapter";
 import ReactMarkdown from "react-markdown";
 import type { UIComponentData } from "@/service/AiService";
 
-// ─── Design card shown for ui_component AI responses ────────────────────────
+// ─── Conversational response shown for ui_component AI responses ─────────────
 function DesignCard({ data }: { data: UIComponentData }) {
+  const description = data.description?.trim();
+
   return (
-    <div className="bg-gradient-to-br from-blue-950/50 to-indigo-950/50 border border-blue-500/40 rounded-xl overflow-hidden shadow-lg">
-      <div className="px-5 py-4 flex items-center gap-3">
-        <div className="bg-blue-500/20 p-2 rounded-lg">
-          <Sparkles className="w-5 h-5 text-blue-400" />
-        </div>
-        <div>
-          <h3 className="font-bold text-sm text-blue-100">Interfaz generada</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{data.designInfo?.layout || "Componente React"}</p>
-        </div>
-      </div>
-
-      <div className="px-5 pb-5 border-t border-blue-500/20 pt-4 space-y-4">
-        {/* AI description of what was built */}
-        {data.description && (
-          <p className="text-sm text-gray-300 leading-relaxed">{data.description}</p>
-        )}
-
-        {/* Color palette */}
-        {data.designInfo?.colors && Object.keys(data.designInfo.colors).length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-blue-200 mb-2">Paleta</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(data.designInfo.colors).map(([key, value]) => (
-                <div key={key} className="flex items-center gap-1.5">
-                  <div
-                    className="w-4 h-4 rounded border border-white/20"
-                    style={{ backgroundColor: value }}
-                  />
-                  <span className="text-xs text-gray-400 capitalize">{key}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Effects */}
-        {data.designInfo?.effects?.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-blue-200 mb-2">Efectos</p>
-            <div className="flex flex-wrap gap-1.5">
-              {data.designInfo.effects.slice(0, 4).map((e, i) => (
-                <Badge key={i} className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
-                  {e}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Components */}
-        {data.designInfo?.components?.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-blue-200 mb-2">Componentes</p>
-            <div className="flex flex-wrap gap-1.5">
-              {data.designInfo.components.map((c, i) => (
-                <Badge key={i} className="bg-gray-700/50 text-gray-300 border-gray-600 text-xs">
-                  {c}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
+    <div className="bg-secondary text-foreground rounded-2xl px-4 py-3 space-y-2 max-w-[90%]">
+      <div className="flex items-start gap-2">
+        <Sparkles className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+        <p className="text-sm leading-relaxed">
+          {description
+            ? `${description} Si quieres hacer cambios o ajustes, solo dímelo.`
+            : 'Listo, he diseñado lo que pediste. Puedes verlo en el preview. Si quieres cambios, indícame.'}
+        </p>
       </div>
     </div>
   );
@@ -256,6 +210,86 @@ function PreviewLoadingSkeleton() {
   );
 }
 
+// ─── Lovable-style generation progress ───────────────────────────────────────
+const GEN_STEPS = [
+  { label: 'Analizando tu solicitud', seconds: 2 },
+  { label: 'Diseñando la interfaz',   seconds: 5 },
+  { label: 'Generando componentes',   seconds: 9 },
+  { label: 'Preparando el preview',   seconds: 999 },
+];
+
+function GenerationProgress({ streamingContent }: { streamingContent: string }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const stepIdx = GEN_STEPS.findIndex((_, i) => {
+    const cumulative = GEN_STEPS.slice(0, i + 1).reduce((a, s) => a + s.seconds, 0);
+    return elapsed < cumulative;
+  });
+  const currentStep = stepIdx === -1 ? GEN_STEPS.length - 1 : stepIdx;
+
+  // Pull last meaningful line from stream (skip JSON/empty lines)
+  const currentAction = streamingContent
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('{') && !l.startsWith('[') && l.length > 8)
+    .slice(-1)[0]
+    ?.slice(0, 65);
+
+  return (
+    <div className="h-full bg-[#0d0d14] flex flex-col items-center justify-center p-8 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-primary/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-violet-500/6 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-xs space-y-4">
+        {/* Timer */}
+        <div className="flex items-center gap-2 text-xs text-white/40">
+          <div className="w-3.5 h-3.5 rounded-full border-2 border-primary/60 border-t-primary animate-spin" />
+          <span>Pensando por {elapsed}s</span>
+        </div>
+
+        {/* Current action */}
+        {currentAction && (
+          <div className="bg-white/4 border border-white/8 rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-white/60">Editando componentes</span>
+              <ChevronRight className="w-3 h-3 text-white/25" />
+            </div>
+            <p className="text-xs text-white/35 truncate">{currentAction}</p>
+          </div>
+        )}
+
+        {/* Steps list */}
+        <div className="bg-white/3 border border-white/8 rounded-xl overflow-hidden">
+          {GEN_STEPS.map((step, i) => {
+            const done   = i < currentStep;
+            const active = i === currentStep;
+            return (
+              <div key={step.label} className={`flex items-center gap-3 px-4 py-2.5 ${i > 0 ? 'border-t border-white/5' : ''}`}>
+                {done ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                ) : active ? (
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin flex-shrink-0" />
+                ) : (
+                  <div className="w-3.5 h-3.5 rounded-full border border-white/20 flex-shrink-0" />
+                )}
+                <span className={`text-xs ${done ? 'text-green-400' : active ? 'text-white/80 font-medium' : 'text-white/25'}`}>
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 const FULL_PROJECT_RE =
   /proyecto completo|proyecto nuevo|crea un proyecto|genera proyecto|estructura completa|app completa|aplicación completa|sistema completo|plataforma|arquitectura/i;
@@ -275,14 +309,13 @@ export default function AIChat() {
     previewHtml,
     previewUrl,
     wcStatus,
-    wcError,
-    uiData,
     sendMessage,
     sendFullProjectRequest,
     clearChat,
   } = useChat();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   // Auto-scroll chat to bottom
@@ -352,333 +385,398 @@ export default function AIChat() {
     mobile: 'w-[375px] h-[667px] mx-auto',
   }[device];
 
-  // Show skeleton from the moment user sends until Vite URL is ready
-  const showSkeleton = (sending || previewHtml || wcStatus !== 'idle') && !previewUrl;
+  // Show WC booting skeleton after generation (not while AI is generating)
+  const showSkeleton = !sending && (previewHtml !== '' || wcStatus !== 'idle') && !previewUrl;
+
+  const NAV_ITEMS = [
+    { to: '/dashboard',  icon: Home,          label: 'Dashboard' },
+    { to: '/ai-chat',    icon: MessageSquare, label: 'AI Chat' },
+    { to: '/editor',     icon: Code2,         label: 'Editor' },
+    { to: '/projects',   icon: FolderOpen,    label: 'Proyectos' },
+    { to: '/settings',   icon: Settings,      label: 'Ajustes' },
+  ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        <Sidebar />
+    <div className="h-screen bg-background flex overflow-hidden">
 
-        <main className="flex-1 ml-64 pt-16">
-          <div className="flex h-[calc(100vh-4rem)]">
+      {/* ── Icon sidebar ─────────────────────────────────────────── */}
+      <aside className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border bg-card">
+        <Link
+          to="/"
+          className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-5 hover:bg-primary/20 transition-colors"
+          title="Inicio"
+        >
+          <Rocket className="w-4 h-4 text-primary" />
+        </Link>
 
-            {/* ── Left: Chat ─────────────────────────────────────────── */}
-            <div className="w-2/5 border-r border-border flex flex-col bg-card">
-              {/* Header */}
-              <div className="p-5 border-b border-border flex items-center justify-between">
-                <div>
-                  <h1 className="text-xl font-heading font-bold flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    AI Builder
-                  </h1>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Describe tu proyecto y lo generamos en tiempo real
-                  </p>
+        <nav className="flex flex-col gap-1 flex-1">
+          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+            <Link
+              key={to}
+              to={to}
+              title={label}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                location.pathname === to
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+            </Link>
+          ))}
+        </nav>
+
+        {/* User avatar */}
+        {(() => {
+          const user = authService.getUser();
+          const initials = (user?.username ?? user?.email ?? '?').slice(0, 2).toUpperCase();
+          return (
+            <div
+              className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
+              title={user?.username ?? user?.email ?? 'Usuario'}
+              onClick={() => navigate('/settings')}
+            >
+              {user?.avatar
+                ? <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
+                : initials}
+            </div>
+          );
+        })()}
+
+        <Button
+          size="sm"
+          onClick={() => navigate('/projects')}
+          className="w-9 h-9 p-0 bg-primary hover:bg-primary/90"
+          title="Publicar"
+        >
+          <Upload className="w-4 h-4" />
+        </Button>
+      </aside>
+
+      {/* ── Left: Chat ───────────────────────────────────────────── */}
+      <div className="w-[360px] flex-shrink-0 border-r border-border flex flex-col bg-card">
+        {/* Minimal top bar — only trash when there are messages */}
+        {messages.length > 0 && (
+          <div className="px-3 py-2 border-b border-border flex justify-end">
+            <Button variant="ghost" size="sm" onClick={clearChat} title="Limpiar chat">
+              <Trash2 className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
+          {messages.length === 0 && !sending && (
+            <div className="h-full flex flex-col items-center justify-center px-4 space-y-5">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                  <Sparkles className="w-6 h-6 text-primary" />
                 </div>
-                {messages.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearChat} title="Limpiar chat">
-                    <Trash2 className="w-4 h-4 text-muted-foreground" />
-                  </Button>
-                )}
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {messages.length === 0 && !sending && (
-                  <div className="h-full flex flex-col items-center justify-center text-center px-6 space-y-3">
-                    <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="w-7 h-7 text-primary" />
-                    </div>
-                    <h2 className="font-heading font-semibold text-lg">¿Qué quieres construir?</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Describe una interfaz, componente o proyecto y lo generaré automáticamente con preview en vivo.
-                    </p>
-                    <div className="flex flex-col gap-2 w-full mt-2">
-                      {[
-                        'Crea un dashboard con gráficas de ventas',
-                        'Diseña un formulario de login moderno',
-                        'Genera una landing page para una app SaaS',
-                      ].map(suggestion => (
-                        <button
-                          key={suggestion}
-                          onClick={() => { setMessage(suggestion); textareaRef.current?.focus(); }}
-                          className="text-left text-xs px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground transition-colors"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {messages.map((msg, idx) => (
-                  <ChatBubble key={idx} message={msg} />
-                ))}
-
-                {/* Live streaming bubble — always shows friendly state, never raw JSON */}
-                {sending && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[90%] bg-secondary text-foreground rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
-                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
-                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {streamingContent ? 'Diseñando tu interfaz...' : 'Generando...'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input */}
-              <div className="p-4 border-t border-border space-y-2">
-                <div className="flex gap-2">
-                  <Textarea
-                    ref={textareaRef}
-                    value={message}
-                    onChange={e => setMessage(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Ej: 'Crea un dashboard con gráficas de ventas y modo oscuro'"
-                    className="min-h-[80px] bg-background border-border resize-none text-sm"
-                    disabled={sending}
-                  />
-                  <Button
-                    onClick={handleSend}
-                    size="lg"
-                    className="bg-primary hover:bg-primary/90 h-[80px] px-5"
-                    disabled={sending || !message.trim()}
-                  >
-                    {sending ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Enter para enviar · Shift+Enter para nueva línea
+                <h2 className="font-heading font-semibold text-base">¿Qué quieres construir?</h2>
+                <p className="text-xs text-muted-foreground">
+                  Describe tu idea y lo genero con preview en vivo
                 </p>
               </div>
-            </div>
-
-            {/* ── Right: Preview / Code ──────────────────────────────── */}
-            <div className="flex-1 flex flex-col bg-background">
-              {/* Toolbar */}
-              <div className="border-b border-border p-3 flex items-center justify-between">
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-                  <TabsList>
-                    <TabsTrigger value="preview" className="gap-2 text-xs">
-                      <Eye className="w-3.5 h-3.5" />
-                      Vista Previa
-                      {wcStatus === 'ready' && (
-                        <span className="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse" title="Vite corriendo" />
-                      )}
-                      {showSkeleton && (
-                        <span className="ml-1 w-2 h-2 rounded-full bg-yellow-400 inline-block animate-pulse" title="Construyendo..." />
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger value="code" className="gap-2 text-xs">
-                      <Code2 className="w-3.5 h-3.5" />
-                      Código
-                      {generatedCode && (
-                        <span className="ml-1 w-2 h-2 rounded-full bg-blue-500 inline-block" title="Código listo" />
-                      )}
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-
-                <div className="flex items-center gap-2">
-                  {/* Device switcher */}
-                  <div className="flex gap-1 p-1 bg-secondary rounded-lg">
-                    {([
-                      { key: 'desktop', icon: Monitor },
-                      { key: 'tablet', icon: Tablet },
-                      { key: 'mobile', icon: Smartphone },
-                    ] as const).map(({ key, icon: Icon }) => (
-                      <Button
-                        key={key}
-                        variant={device === key ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setDevice(key)}
-                        className="h-7 w-7 p-0"
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                      </Button>
-                    ))}
-                  </div>
-
-                  <Separator orientation="vertical" className="h-6" />
-
-                  <Button variant="outline" size="sm" onClick={handleCopyCode} disabled={!generatedCode} className="text-xs h-7">
-                    <Copy className="w-3 h-3 mr-1" />
-                    Copiar
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleExport} className="text-xs h-7">
-                    <Download className="w-3 h-3 mr-1" />
-                    Exportar
-                  </Button>
-                  {(previewUrl || previewHtml) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (previewHtml) {
-                          const blob = new Blob([previewHtml], { type: 'text/html' });
-                          const url = URL.createObjectURL(blob);
-                          window.open(url, '_blank');
-                        } else {
-                          window.open(previewUrl, '_blank');
-                        }
-                      }}
-                      className="text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
-                      title="Abrir preview en nueva pestaña"
-                    >
-                      <ExternalLink className="w-3 h-3 mr-1" />
-                      Nueva pestaña
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={() => navigate('/editor')}
-                    disabled={!generatedCode}
-                    className="bg-primary hover:bg-primary/90 text-xs h-7"
+              <div className="flex flex-col gap-2 w-full">
+                {[
+                  { icon: Monitor,    label: 'Quiero un dashboard de ventas',       prompt: 'Crea un dashboard con gráficas de ventas y métricas en modo oscuro' },
+                  { icon: Eye,        label: 'Necesito un formulario de login',     prompt: 'Diseña un formulario de login moderno con glassmorphism y animaciones' },
+                  { icon: Smartphone, label: 'Diseña una landing page para mi app', prompt: 'Genera una landing page moderna para una app SaaS con hero, features y pricing' },
+                  { icon: Code2,      label: 'Crea mi página de registro',          prompt: 'Crea un formulario de registro con validación y diseño premium' },
+                ].map(({ icon: Icon, label, prompt }) => (
+                  <button
+                    key={label}
+                    onClick={() => { setMessage(prompt); textareaRef.current?.focus(); }}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary hover:bg-secondary/70 border border-border hover:border-primary/30 transition-all text-left group"
                   >
-                    <Code2 className="w-3 h-3 mr-1" />
-                    Abrir Editor
-                  </Button>
-                </div>
-              </div>
-
-              {/* Panel content */}
-              <div className="flex-1 overflow-hidden">
-                <Tabs value={activeTab} className="h-full">
-                  {/* ── Preview tab ────────────────────────────────── */}
-                  <TabsContent value="preview" className="h-full mt-0 p-0 flex flex-col">
-                    {/* Build progress bar (only while WC is booting) */}
-                    {wcStatus !== 'idle' && wcStatus !== 'ready' && (
-                      <BuildProgressBar status={wcStatus} />
-                    )}
-                    {/* Ready status strip */}
-                    {wcStatus === 'ready' && (
-                      <div className="border-b border-green-500/20 bg-green-500/5 px-4 py-1.5 flex items-center gap-2 text-xs text-green-400">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        Vite corriendo — preview en vivo
-                      </div>
-                    )}
-
-                    {/* Preview frame */}
-                    <div className="flex-1 overflow-hidden relative">
-                      {previewUrl ? (
-                        // Real Vite dev server — fade in when ready
-                        <div className="h-full flex items-start justify-center overflow-auto bg-muted/20 p-4 animate-in fade-in duration-500">
-                          <div
-                            className={`${deviceClass} bg-white rounded-lg border border-green-500/40 shadow-2xl overflow-hidden transition-all duration-300`}
-                            style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
-                          >
-                            <iframe
-                              src={previewUrl}
-                              className="w-full h-full border-0"
-                              title="Vista Previa — Vite"
-                              style={{ minHeight: device === 'desktop' ? 'calc(100vh - 10rem)' : undefined }}
-                            />
-                          </div>
-                        </div>
-                      ) : showSkeleton ? (
-                        // Animated skeleton while WC boots (replaces Babel preview)
-                        <PreviewLoadingSkeleton />
-                      ) : sending && streamingContent ? (
-                        <div className="h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                          <div className="flex gap-2">
-                            <span className="w-3 h-3 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
-                            <span className="w-3 h-3 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
-                            <span className="w-3 h-3 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
-                          </div>
-                          <p className="text-sm">Generando preview...</p>
-                        </div>
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-center gap-4 text-muted-foreground p-8">
-                          <Eye className="w-16 h-16 opacity-20" />
-                          <div>
-                            <p className="font-medium text-foreground">Sin preview</p>
-                            <p className="text-sm mt-1">El preview aparecerá automáticamente cuando la IA genere una interfaz</p>
-                          </div>
-                        </div>
-                      )}
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                      <Icon className="w-3.5 h-3.5 text-primary" />
                     </div>
-                  </TabsContent>
-
-                  {/* ── Code tab ──────────────────────────────────── */}
-                  <TabsContent value="code" className="h-full mt-0">
-                    <div className="h-full bg-[#1e1e1e] overflow-auto">
-                      {generatedCode ? (
-                        <SyntaxHighlighter
-                          language="tsx"
-                          style={vscDarkPlus}
-                          showLineNumbers
-                          customStyle={{
-                            margin: 0,
-                            padding: '1.5rem',
-                            background: '#1e1e1e',
-                            fontSize: '0.8125rem',
-                            minHeight: '100%',
-                          }}
-                        >
-                          {generatedCode}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-center gap-4 text-muted-foreground p-8">
-                          <Code2 className="w-16 h-16 opacity-20" />
-                          <div>
-                            <p className="font-medium text-foreground">Sin código</p>
-                            <p className="text-sm mt-1">El código generado aparecerá aquí en tiempo real</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                    <span className="text-xs font-medium text-foreground">{label}</span>
+                  </button>
+                ))}
               </div>
+            </div>
+          )}
 
-              {/* Status bar */}
-              {uiData && (
-                <div className="border-t border-border px-4 py-2 flex items-center justify-between text-xs text-muted-foreground bg-card">
-                  <div className="flex items-center gap-3">
-                    <span className={`w-2 h-2 rounded-full ${wcStatus === 'ready' && !wcError ? 'bg-green-500 animate-pulse' : wcError ? 'bg-red-500 animate-pulse' : 'bg-yellow-400'}`} />
-                    <span>
-                      {uiData.files?.length ?? 0} archivos · {uiData.designInfo?.components?.length ?? 0} componentes
-                    </span>
+          {messages.map((msg, idx) => (
+            <ChatBubble key={idx} message={msg} />
+          ))}
+
+          {sending && (
+            <div className="flex justify-start">
+              <div className="max-w-[90%] bg-secondary text-foreground rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:300ms]" />
                   </div>
-                  {wcError && sending && (
-                    <span className="text-yellow-400 font-medium flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
-                      Corrigiendo error automáticamente...
-                    </span>
-                  )}
-                  {wcError && !sending && (
-                    <span className="text-red-400 truncate max-w-xs" title={wcError}>
-                      ⚠️ {wcError.split('\n')[0].slice(0, 60)}...
-                    </span>
-                  )}
-                  {!wcError && wcStatus === 'ready' && (
-                    <span className="text-green-400 font-medium">⚡ Vite corriendo</span>
-                  )}
-                  {wcStatus === 'error' && !wcError && (
-                    <span className="text-red-400">WebContainer error — usando Babel preview</span>
-                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {streamingContent ? 'Diseñando tu interfaz...' : 'Generando...'}
+                  </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="p-3 border-t border-border space-y-2">
+          <div className="flex gap-2">
+            <Textarea
+              ref={textareaRef}
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ej: 'Crea un dashboard con gráficas de ventas y modo oscuro'"
+              className="min-h-[72px] bg-background border-border resize-none text-sm [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full"
+              disabled={sending}
+            />
+            <Button
+              onClick={handleSend}
+              size="lg"
+              className="bg-primary hover:bg-primary/90 h-[72px] px-4"
+              disabled={sending || !message.trim()}
+            >
+              {sending ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+              ) : (
+                <Send className="w-4 h-4" />
               )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Enter para enviar · Shift+Enter para nueva línea
+          </p>
+        </div>
+      </div>
+
+      {/* ── Right: Preview / Code ────────────────────────────────── */}
+      <div className="flex-1 flex flex-col bg-background min-w-0">
+        {/* Toolbar */}
+        <div className="border-b border-border px-3 py-2 flex items-center justify-between flex-shrink-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+            <TabsList>
+              <TabsTrigger value="preview" className="gap-2 text-xs">
+                <Eye className="w-3.5 h-3.5" />
+                Vista Previa
+                {wcStatus === 'ready' && (
+                  <span className="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse" />
+                )}
+                {showSkeleton && (
+                  <span className="ml-1 w-2 h-2 rounded-full bg-yellow-400 inline-block animate-pulse" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="code" className="gap-2 text-xs">
+                <Code2 className="w-3.5 h-3.5" />
+                Código
+                {generatedCode && (
+                  <span className="ml-1 w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 p-1 bg-secondary rounded-lg">
+              {([
+                { key: 'desktop', icon: Monitor },
+                { key: 'tablet',  icon: Tablet },
+                { key: 'mobile',  icon: Smartphone },
+              ] as const).map(({ key, icon: Icon }) => (
+                <Button
+                  key={key}
+                  variant={device === key ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setDevice(key)}
+                  className="h-7 w-7 p-0"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                </Button>
+              ))}
             </div>
 
+            <Separator orientation="vertical" className="h-6" />
+
+            <Button variant="outline" size="sm" onClick={handleCopyCode} disabled={!generatedCode} className="text-xs h-7">
+              <Copy className="w-3 h-3 mr-1" />
+              Copiar
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport} className="text-xs h-7">
+              <Download className="w-3 h-3 mr-1" />
+              Exportar
+            </Button>
+            {(previewUrl || previewHtml) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (previewHtml) {
+                    const blob = new Blob([previewHtml], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                  } else {
+                    window.open(previewUrl, '_blank');
+                  }
+                }}
+                className="text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Nueva pestaña
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/editor')}
+              disabled={!generatedCode}
+              className="text-xs h-7"
+            >
+              <Code2 className="w-3 h-3 mr-1" />
+              Abrir Editor
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => navigate('/projects')}
+              className="text-xs h-7 bg-primary hover:bg-primary/90"
+            >
+              <Upload className="w-3 h-3 mr-1" />
+              Publicar
+            </Button>
           </div>
-        </main>
+        </div>
+
+        {/* Panel content */}
+        <div className="flex-1 overflow-hidden">
+          <Tabs value={activeTab} className="h-full">
+            <TabsContent value="preview" className="h-full mt-0 p-0 flex flex-col">
+              {wcStatus !== 'idle' && wcStatus !== 'ready' && (
+                <BuildProgressBar status={wcStatus} />
+              )}
+
+              <div className="flex-1 overflow-hidden relative">
+                {previewUrl ? (
+                  <div className="h-full flex items-start justify-center overflow-auto bg-muted/20 p-4 animate-in fade-in duration-500 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
+                    <div
+                      className={`${deviceClass} bg-white rounded-lg border border-border shadow-2xl overflow-hidden transition-all duration-300`}
+                      style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
+                    >
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-full border-0"
+                        title="Vista Previa — Vite"
+                        style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
+                      />
+                    </div>
+                  </div>
+                ) : sending ? (
+                  <GenerationProgress streamingContent={streamingContent} />
+                ) : showSkeleton ? (
+                  <PreviewLoadingSkeleton />
+                ) : (
+                  <div className="h-full flex flex-col bg-[#0d0d14] relative overflow-hidden">
+                    {/* Ambient glow */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-primary/8 rounded-full blur-3xl" />
+                      <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-violet-500/6 rounded-full blur-3xl" />
+                    </div>
+
+                    {/* Mock browser chrome */}
+                    <div className="relative z-10 flex-1 flex flex-col p-6 gap-4">
+                      {/* Browser bar */}
+                      <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2">
+                        <div className="flex gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-500/40" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-green-500/40" />
+                        </div>
+                        <div className="flex-1 h-4 bg-white/5 rounded-md mx-2" />
+                      </div>
+
+                      {/* Mock navbar skeleton */}
+                      <div className="flex items-center justify-between bg-white/4 border border-white/6 rounded-xl px-4 py-3">
+                        <div className="w-20 h-3 bg-white/10 rounded-full" />
+                        <div className="flex gap-3">
+                          <div className="w-10 h-2.5 bg-white/8 rounded-full" />
+                          <div className="w-10 h-2.5 bg-white/8 rounded-full" />
+                          <div className="w-10 h-2.5 bg-white/8 rounded-full" />
+                        </div>
+                        <div className="w-16 h-6 bg-primary/20 border border-primary/20 rounded-lg" />
+                      </div>
+
+                      {/* Mock hero skeleton */}
+                      <div className="flex-1 bg-white/3 border border-white/6 rounded-xl p-6 flex flex-col items-center justify-center gap-3">
+                        <div className="w-48 h-4 bg-white/10 rounded-full" />
+                        <div className="w-64 h-3 bg-white/6 rounded-full" />
+                        <div className="w-40 h-3 bg-white/6 rounded-full" />
+                        <div className="flex gap-2 mt-2">
+                          <div className="w-24 h-7 bg-primary/25 border border-primary/20 rounded-lg" />
+                          <div className="w-24 h-7 bg-white/6 border border-white/8 rounded-lg" />
+                        </div>
+                      </div>
+
+                      {/* Mock cards row */}
+                      <div className="flex gap-3">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="flex-1 bg-white/3 border border-white/6 rounded-xl p-3 space-y-2">
+                            <div className="w-6 h-6 bg-primary/20 rounded-lg" />
+                            <div className="w-full h-2.5 bg-white/8 rounded-full" />
+                            <div className="w-3/4 h-2 bg-white/5 rounded-full" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Center overlay message */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
+                      <div className="bg-background/60 backdrop-blur-md border border-border rounded-2xl px-6 py-5 text-center space-y-2 shadow-xl">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto">
+                          <Sparkles className="w-5 h-5 text-primary" />
+                        </div>
+                        <p className="text-sm font-medium text-foreground">Tu interfaz aparecerá aquí</p>
+                        <p className="text-xs text-muted-foreground">Describe lo que quieres construir en el chat</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="code" className="h-full mt-0">
+              <div className="h-full bg-[#1e1e1e] overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+                {generatedCode ? (
+                  <SyntaxHighlighter
+                    language="tsx"
+                    style={vscDarkPlus}
+                    showLineNumbers
+                    customStyle={{
+                      margin: 0,
+                      padding: '1.5rem',
+                      background: '#1e1e1e',
+                      fontSize: '0.8125rem',
+                      minHeight: '100%',
+                    }}
+                  >
+                    {generatedCode}
+                  </SyntaxHighlighter>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center gap-4 text-muted-foreground p-8">
+                    <Code2 className="w-16 h-16 opacity-20" />
+                    <div>
+                      <p className="font-medium text-foreground">Sin código</p>
+                      <p className="text-sm mt-1">El código generado aparecerá aquí en tiempo real</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
+
     </div>
   );
 }
