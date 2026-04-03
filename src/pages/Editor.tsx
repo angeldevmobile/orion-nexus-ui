@@ -43,7 +43,7 @@ import {
 import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
 import { authService } from "@/service/AuthService";
 import { apiService } from "@/service/ApiService";
-
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Editor() {
 	const {
@@ -58,12 +58,26 @@ export default function Editor() {
 	const [tree, setTree] = useState<FileNode[]>([]);
 	const [hasProject, setHasProject] = useState<boolean | null>(null); // null = loading
 	const [consoleLines, setConsoleLines] = useState<string[]>([]);
-	const [selectedTemplate, setSelectedTemplate] = useState<string>("react-vite");
+	const [selectedTemplate, setSelectedTemplate] =
+		useState<string>("react-vite");
 	const [creating, setCreating] = useState(false);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const { toast } = useToast();
 	const location = useLocation();
 	const navigate = useNavigate();
+	const { user } = useAuth();
+	const prefs = user?.preferences as Record<string, unknown> | undefined;
+	const editorFontFamily = prefs?.editorFont
+		? String(prefs.editorFont)
+		: "Fira Code";
+	const editorFontSize = prefs?.editorFontSize
+		? Number(prefs.editorFontSize)
+		: 14;
+	const editorTheme = prefs?.editorTheme
+		? String(prefs.editorTheme)
+		: "VS Code Dark";
+	const editorAutocomplete =
+		prefs?.autocomplete !== undefined ? Boolean(prefs.autocomplete) : true;
 
 	// On mount: check if a project already exists in the virtual FS
 	useEffect(() => {
@@ -82,7 +96,9 @@ export default function Editor() {
 	}, []);
 
 	// Sync active file content
-	useEffect(() => { setLocalActiveFile(activeFile); }, [activeFile]);
+	useEffect(() => {
+		setLocalActiveFile(activeFile);
+	}, [activeFile]);
 	useEffect(() => {
 		const file = files.find((f) => f.name === localActiveFile);
 		if (file) setEditedContent(file.content);
@@ -129,7 +145,8 @@ export default function Editor() {
 						index === parts.length - 1 &&
 						!paths.some((p) => p.startsWith(fullPath + "/") && p !== fullPath);
 					current[part] = {
-						name: part, path: fullPath,
+						name: part,
+						path: fullPath,
 						type: isFile ? "file" : "folder",
 						children: isFile ? undefined : {},
 					};
@@ -142,7 +159,9 @@ export default function Editor() {
 
 		const toArray = (obj: Record<string, TreeNode>): FileNode[] =>
 			Object.values(obj).map((n) => ({
-				name: n.name, path: n.path, type: n.type,
+				name: n.name,
+				path: n.path,
+				type: n.type,
 				...(n.children ? { children: toArray(n.children) } : {}),
 			}));
 
@@ -155,9 +174,15 @@ export default function Editor() {
 		try {
 			await fileManager.clearDirectory("/");
 			const template = PROJECT_TEMPLATES[selectedTemplate];
-			if (!template) throw new Error(`Template ${selectedTemplate} no encontrado`);
+			if (!template)
+				throw new Error(`Template ${selectedTemplate} no encontrado`);
 
-			setConsoleLines((l) => [...l, `${(template as ProjectTemplate).icon} Usando template: ${(template as ProjectTemplate).name}`]);
+			setConsoleLines((l) => [
+				...l,
+				`${(template as ProjectTemplate).icon} Usando template: ${
+					(template as ProjectTemplate).name
+				}`,
+			]);
 			const projectFiles = await (template as ProjectTemplate).createProject();
 
 			for (const [path, content] of Object.entries(projectFiles)) {
@@ -173,17 +198,28 @@ export default function Editor() {
 			setEditedContent(content);
 
 			setHasProject(true);
-			toast({ title: "Proyecto creado", description: `${(template as ProjectTemplate).name} listo` });
+			toast({
+				title: "Proyecto creado",
+				description: `${(template as ProjectTemplate).name} listo`,
+			});
 
 			// Guardar en base de datos (silencioso si no hay sesión activa)
-			apiService.post('/projects', {
-				name: (template as ProjectTemplate).name,
-				description: '',
-				isPublic: false,
-			}).catch(() => { /* No autenticado o error de red — el proyecto existe localmente */ });
+			apiService
+				.post("/projects", {
+					name: (template as ProjectTemplate).name,
+					description: "",
+					isPublic: false,
+				})
+				.catch(() => {
+					/* No autenticado o error de red — el proyecto existe localmente */
+				});
 		} catch (error) {
 			setConsoleLines((l) => [...l, `❌ Error: ${error}`]);
-			toast({ title: "Error", description: String(error), variant: "destructive" });
+			toast({
+				title: "Error",
+				description: String(error),
+				variant: "destructive",
+			});
 		} finally {
 			setCreating(false);
 		}
@@ -235,7 +271,6 @@ export default function Editor() {
 		});
 	};
 
-
 	// ── Loading state ────────────────────────────────────────────────────────────
 	if (hasProject === null) {
 		return (
@@ -264,7 +299,9 @@ export default function Editor() {
 						</div>
 
 						<div className="space-y-2">
-							<h1 className="font-heading font-semibold text-lg">No hay proyecto activo</h1>
+							<h1 className="font-heading font-semibold text-lg">
+								No hay proyecto activo
+							</h1>
 							<p className="text-sm text-muted-foreground leading-relaxed">
 								Crea o abre un proyecto para empezar a editar código.
 							</p>
@@ -273,16 +310,14 @@ export default function Editor() {
 						<div className="space-y-2.5">
 							<Button
 								className="w-full bg-primary hover:bg-primary/90"
-								onClick={() => navigate("/projects")}
-							>
+								onClick={() => navigate("/projects")}>
 								<FolderOpen className="w-4 h-4 mr-2" />
 								Mis Proyectos
 							</Button>
 							<Button
 								variant="outline"
 								className="w-full"
-								onClick={() => navigate("/ai-chat")}
-							>
+								onClick={() => navigate("/ai-chat")}>
 								<Sparkles className="w-4 h-4 mr-2 text-primary" />
 								Generar con IA
 							</Button>
@@ -309,8 +344,7 @@ export default function Editor() {
 						<button
 							title="Cerrar proyecto"
 							onClick={handleNewProject}
-							className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-						>
+							className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
 							<Trash2 className="w-3.5 h-3.5" />
 						</button>
 					</div>
@@ -319,8 +353,7 @@ export default function Editor() {
 					<select
 						value={selectedTemplate}
 						onChange={(e) => setSelectedTemplate(e.target.value)}
-						className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded-lg"
-					>
+						className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded-lg">
 						{Object.entries(PROJECT_TEMPLATES).map(([key, tpl]) => (
 							<option key={key} value={key}>
 								{(tpl as ProjectTemplate).icon} {(tpl as ProjectTemplate).name}
@@ -332,12 +365,17 @@ export default function Editor() {
 						variant="outline"
 						className="w-full h-7 text-xs"
 						onClick={handleCreateProject}
-						disabled={creating}
-					>
+						disabled={creating}>
 						{creating ? (
-							<><div className="w-3 h-3 rounded-full border-2 border-muted-foreground/40 border-t-foreground animate-spin mr-1.5" />Creando...</>
+							<>
+								<div className="w-3 h-3 rounded-full border-2 border-muted-foreground/40 border-t-foreground animate-spin mr-1.5" />
+								Creando...
+							</>
 						) : (
-							<><Layout className="w-3 h-3 mr-1.5" />Nuevo Proyecto</>
+							<>
+								<Layout className="w-3 h-3 mr-1.5" />
+								Nuevo Proyecto
+							</>
 						)}
 					</Button>
 				</div>
@@ -360,7 +398,9 @@ export default function Editor() {
 						<Code2 className="w-4 h-4 text-primary" />
 						<span className="font-heading font-semibold text-sm">Editor</span>
 						{localActiveFile && (
-							<Badge variant="secondary" className="text-xs font-mono">{localActiveFile}</Badge>
+							<Badge variant="secondary" className="text-xs font-mono">
+								{localActiveFile}
+							</Badge>
 						)}
 					</div>
 
@@ -376,29 +416,31 @@ export default function Editor() {
 								<DialogHeader>
 									<DialogTitle>Exportar Proyecto</DialogTitle>
 									<DialogDescription>
-										Convierte y exporta tu proyecto a diferentes lenguajes y frameworks
+										Convierte y exporta tu proyecto a diferentes lenguajes y
+										frameworks
 									</DialogDescription>
 								</DialogHeader>
 
 								<div className="space-y-6 py-4">
 									<div className="space-y-4">
-										<Label className="text-base font-semibold">Exportar como:</Label>
+										<Label className="text-base font-semibold">
+											Exportar como:
+										</Label>
 										<div className="grid grid-cols-2 gap-3">
 											{[
-												{ name: "React",       icon: "⚛️" },
+												{ name: "React", icon: "⚛️" },
 												{ name: "HTML/CSS/JS", icon: "🌐" },
-												{ name: "Flutter",     icon: "📱" },
-												{ name: "Vue.js",      icon: "💚" },
-												{ name: "Angular",     icon: "🅰️" },
-												{ name: "Next.js",     icon: "▲" },
-												{ name: "Svelte",      icon: "🔥" },
-												{ name: "AppScript",   icon: "📜" },
+												{ name: "Flutter", icon: "📱" },
+												{ name: "Vue.js", icon: "💚" },
+												{ name: "Angular", icon: "🅰️" },
+												{ name: "Next.js", icon: "▲" },
+												{ name: "Svelte", icon: "🔥" },
+												{ name: "AppScript", icon: "📜" },
 											].map((fw) => (
 												<Button
 													key={fw.name}
 													variant="outline"
-													className="justify-start h-auto py-3 hover:bg-primary/10 hover:border-primary"
-												>
+													className="justify-start h-auto py-3 hover:bg-primary/10 hover:border-primary">
 													<span className="text-2xl mr-3">{fw.icon}</span>
 													<span className="font-medium">{fw.name}</span>
 												</Button>
@@ -407,17 +449,39 @@ export default function Editor() {
 									</div>
 
 									<div className="pt-4 border-t border-border space-y-4">
-										<Label className="text-base font-semibold block">Opciones:</Label>
+										<Label className="text-base font-semibold block">
+											Opciones:
+										</Label>
 										{[
-											{ label: "Incluir dependencias", sub: "package.json con todas las librerías", def: true },
-											{ label: "Minificar código",     sub: "Optimizar para producción",            def: true },
-											{ label: "Comentarios",          sub: "Documentación automática",             def: false },
-											{ label: "TypeScript",           sub: "Usar TypeScript en lugar de JavaScript", def: true },
+											{
+												label: "Incluir dependencias",
+												sub: "package.json con todas las librerías",
+												def: true,
+											},
+											{
+												label: "Minificar código",
+												sub: "Optimizar para producción",
+												def: true,
+											},
+											{
+												label: "Comentarios",
+												sub: "Documentación automática",
+												def: false,
+											},
+											{
+												label: "TypeScript",
+												sub: "Usar TypeScript en lugar de JavaScript",
+												def: true,
+											},
 										].map((opt) => (
-											<div key={opt.label} className="flex items-center justify-between">
+											<div
+												key={opt.label}
+												className="flex items-center justify-between">
 												<div>
 													<p className="font-medium text-sm">{opt.label}</p>
-													<p className="text-xs text-muted-foreground">{opt.sub}</p>
+													<p className="text-xs text-muted-foreground">
+														{opt.sub}
+													</p>
 												</div>
 												<Switch defaultChecked={opt.def} />
 											</div>
@@ -429,7 +493,10 @@ export default function Editor() {
 											<Download className="w-4 h-4 mr-2" />
 											Exportar Proyecto
 										</Button>
-										<Button variant="outline" className="flex-1" onClick={() => setConfigOpen(false)}>
+										<Button
+											variant="outline"
+											className="flex-1"
+											onClick={() => setConfigOpen(false)}>
 											Cancelar
 										</Button>
 									</div>
@@ -437,11 +504,18 @@ export default function Editor() {
 							</DialogContent>
 						</Dialog>
 
-						<Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSave}>
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={handleSave}>
 							<Save className="w-3.5 h-3.5 mr-1.5" />
 							Guardar
 						</Button>
-						<Button size="sm" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={handleRun}>
+						<Button
+							size="sm"
+							className="h-7 text-xs bg-primary hover:bg-primary/90"
+							onClick={handleRun}>
 							<Play className="w-3.5 h-3.5 mr-1.5" />
 							Ejecutar
 						</Button>
@@ -452,9 +526,15 @@ export default function Editor() {
 				<Tabs defaultValue="code" className="flex-1 flex flex-col min-h-0">
 					<div className="flex-shrink-0 border-b border-border bg-card px-4">
 						<TabsList className="h-9">
-							<TabsTrigger value="code"    className="text-xs">Código</TabsTrigger>
-							<TabsTrigger value="preview" className="text-xs">Vista Previa</TabsTrigger>
-							<TabsTrigger value="console" className="text-xs">Consola</TabsTrigger>
+							<TabsTrigger value="code" className="text-xs">
+								Código
+							</TabsTrigger>
+							<TabsTrigger value="preview" className="text-xs">
+								Vista Previa
+							</TabsTrigger>
+							<TabsTrigger value="console" className="text-xs">
+								Consola
+							</TabsTrigger>
 						</TabsList>
 					</div>
 
@@ -464,6 +544,10 @@ export default function Editor() {
 								filePath={localActiveFile}
 								code={editedContent}
 								onChange={setEditedContent}
+								fontFamily={editorFontFamily}
+								fontSize={editorFontSize}
+								editorTheme={editorTheme}
+								autocomplete={editorAutocomplete}
 							/>
 						) : (
 							<div className="h-full flex items-center justify-center text-muted-foreground">
@@ -481,10 +565,19 @@ export default function Editor() {
 								<div className="bg-card rounded-lg p-6 shadow-lg">
 									<img
 										src={(() => {
-											if (editedContent.startsWith("data:")) return editedContent;
-											if (editedContent.trim().startsWith("<") || localActiveFile.endsWith(".svg"))
-												return `data:image/svg+xml;utf8,${encodeURIComponent(editedContent)}`;
-											const ext = localActiveFile.split(".").pop()?.toLowerCase();
+											if (editedContent.startsWith("data:"))
+												return editedContent;
+											if (
+												editedContent.trim().startsWith("<") ||
+												localActiveFile.endsWith(".svg")
+											)
+												return `data:image/svg+xml;utf8,${encodeURIComponent(
+													editedContent,
+												)}`;
+											const ext = localActiveFile
+												.split(".")
+												.pop()
+												?.toLowerCase();
 											const mime = ext === "ico" ? "x-icon" : ext;
 											return `data:image/${mime};base64,${editedContent}`;
 										})()}
@@ -508,11 +601,15 @@ export default function Editor() {
 						<div className="h-full bg-background p-4">
 							<Card className="h-full bg-card border-border p-4 overflow-auto font-mono text-sm [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
 								{consoleLines.length === 0 ? (
-									<p className="text-muted-foreground text-xs">Consola vacía. Ejecuta el proyecto para ver los logs.</p>
+									<p className="text-muted-foreground text-xs">
+										Consola vacía. Ejecuta el proyecto para ver los logs.
+									</p>
 								) : (
 									<div className="space-y-1">
 										{consoleLines.map((line, i) => (
-											<p key={i} className="text-muted-foreground">{line}</p>
+											<p key={i} className="text-muted-foreground">
+												{line}
+											</p>
 										))}
 									</div>
 								)}

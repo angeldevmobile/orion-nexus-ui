@@ -1,6 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { AuthContext, UserProfile } from "./AuthContextType";
 
+const ACCENT_COLORS: Record<string, string> = {
+  cyan:   "198 93% 60%",
+  blue:   "217 91% 60%",
+  purple: "270 91% 65%",
+  green:  "142 71% 45%",
+  orange: "25 95% 53%",
+};
+
+function applyAppearance(prefs: Record<string, unknown> | undefined) {
+  const root = document.documentElement;
+
+  // Theme
+  const appTheme = prefs?.appTheme ? String(prefs.appTheme) : "dark";
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark = appTheme === "dark" || (appTheme === "auto" && prefersDark);
+  root.classList.toggle("light", !isDark);
+
+  // Accent color
+  const accentColor = prefs?.accentColor ? String(prefs.accentColor) : "cyan";
+  const hsl = ACCENT_COLORS[accentColor] ?? ACCENT_COLORS.cyan;
+  root.style.setProperty("--primary", hsl);
+  root.style.setProperty("--accent", hsl);
+  root.style.setProperty("--ring", hsl);
+  root.style.setProperty("--sidebar-primary", hsl);
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -10,11 +36,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const storedToken = localStorage.getItem("auth_token");
     const storedUser = localStorage.getItem("user");
     if (storedToken && storedUser) {
+      const parsedUser: UserProfile = JSON.parse(storedUser);
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      setUser(parsedUser);
       setIsAuthenticated(true);
+      applyAppearance(parsedUser.preferences as Record<string, unknown> | undefined);
     }
   }, []);
+
+  // Re-apply whenever user preferences change
+  useEffect(() => {
+    applyAppearance(user?.preferences as Record<string, unknown> | undefined);
+  }, [user]);
 
   const login = (newToken: string, newUser: UserProfile) => {
     localStorage.setItem("auth_token", newToken);
@@ -30,6 +63,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
+    applyAppearance(undefined); // reset to defaults
   };
 
   const updateUser = (updatedUser: UserProfile) => {
