@@ -50,6 +50,10 @@ export default function Settings() {
   const [accentColor, setAccentColor] = useState("cyan");
   const [savingAppearance, setSavingAppearance] = useState(false);
 
+  // Security preferences
+  const [twoFactor, setTwoFactor] = useState(false);
+  const [savingTwoFactor, setSavingTwoFactor] = useState(false);
+
   // Integrations
   const [disconnectingGithub, setDisconnectingGithub] = useState(false);
 
@@ -72,6 +76,7 @@ export default function Settings() {
         if (prefs.formatOnSave !== undefined) setFormatOnSave(Boolean(prefs.formatOnSave));
         if (prefs.appTheme) setAppTheme(String(prefs.appTheme));
         if (prefs.accentColor) setAccentColor(String(prefs.accentColor));
+        if (prefs.twoFactor !== undefined) setTwoFactor(Boolean(prefs.twoFactor));
       }
     }
   }, [user]);
@@ -109,6 +114,11 @@ export default function Settings() {
       toast({ title: "Error", description: "La contraseña debe tener al menos 6 caracteres.", variant: "destructive" });
       return;
     }
+    // Para usuarios con cuenta local, requerir contraseña actual
+    if (user?.has_password !== false && !currentPassword) {
+      toast({ title: "Error", description: "Ingresa tu contraseña actual.", variant: "destructive" });
+      return;
+    }
     setSavingPassword(true);
     try {
       const res = await fetch(`${API_BASE}/auth/change-password`, {
@@ -121,11 +131,34 @@ export default function Settings() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      toast({ title: "Contraseña actualizada", description: "Tu contraseña ha sido cambiada exitosamente." });
+      toast({ title: user?.has_password ? "Contraseña actualizada" : "Contraseña establecida", description: "Tu contraseña ha sido guardada exitosamente." });
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleToggleTwoFactor = async (value: boolean) => {
+    setSavingTwoFactor(true);
+    const prev = twoFactor;
+    setTwoFactor(value);
+    try {
+      const currentPrefs = (user?.preferences as Record<string, unknown>) || {};
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ preferences: { ...currentPrefs, twoFactor: value } }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error al guardar");
+      updateUser(data.data);
+      toast({ title: value ? "2FA activado" : "2FA desactivado", description: "Tu preferencia de seguridad ha sido guardada." });
+    } catch (err: unknown) {
+      setTwoFactor(prev);
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
+    } finally {
+      setSavingTwoFactor(false);
     }
   };
 
@@ -610,17 +643,31 @@ export default function Settings() {
                     <CardDescription>Protege tu cuenta y datos</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="current-password">Contraseña actual</Label>
-                        <Input
-                          id="current-password"
-                          type="password"
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          className="bg-background"
-                        />
+                    {/* Info para usuarios GitHub sin contraseña local */}
+                    {user?.github_id && user?.has_password === false && (
+                      <div className="flex items-start gap-3 p-4 rounded-lg bg-primary/10 border border-primary/30">
+                        <span className="text-lg mt-0.5">&#x1F511;</span>
+                        <div>
+                          <p className="font-medium text-sm">Cuenta de GitHub detectada</p>
+                          <p className="text-sm text-muted-foreground mt-0.5">Tu cuenta no tiene contraseña local. Puedes establecer una para iniciar sesión sin GitHub.</p>
+                        </div>
                       </div>
+                    )}
+
+                    <div className="grid gap-4">
+                      {/* Ocultar campo contraseña actual si el usuario no tiene una */}
+                      {(user?.has_password !== false || !user?.github_id) && (
+                        <div className="grid gap-2">
+                          <Label htmlFor="current-password">Contraseña actual</Label>
+                          <Input
+                            id="current-password"
+                            type="password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            className="bg-background"
+                          />
+                        </div>
+                      )}
                       <div className="grid gap-2">
                         <Label htmlFor="new-password">Nueva contraseña</Label>
                         <Input
@@ -643,24 +690,31 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    <div className="space-y-4 border-t border-border pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">Autenticación de dos factores</p>
-                          <p className="text-sm text-muted-foreground">Mayor seguridad para tu cuenta</p>
-                        </div>
-                        <Switch />
-                      </div>
-                    </div>
-
                     <Button
                       className="bg-primary hover:bg-primary/90"
                       onClick={handleChangePassword}
                       disabled={savingPassword}
                     >
                       {savingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Actualizar contraseña
+                      {user?.has_password === false && user?.github_id ? "Establecer contraseña" : "Actualizar contraseña"}
                     </Button>
+
+                    <div className="space-y-4 border-t border-border pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">Autenticación de dos factores</p>
+                          <p className="text-sm text-muted-foreground">Mayor seguridad para tu cuenta</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {savingTwoFactor && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                          <Switch
+                            checked={twoFactor}
+                            onCheckedChange={handleToggleTwoFactor}
+                            disabled={savingTwoFactor}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>

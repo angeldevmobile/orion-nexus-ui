@@ -120,7 +120,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 // Obtener perfil - CAMBIADO: Request en lugar de RequestWithUser
 export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   const userResult = await pool.query(
-    'SELECT id, username, email, avatar, role, github_id, preferences, created_at, updated_at FROM users WHERE id = $1',
+    'SELECT id, username, email, avatar, role, github_id, preferences, created_at, updated_at, (password IS NOT NULL) as has_password FROM users WHERE id = $1',
     [req.user?.id]
   );
   if (userResult.rows.length === 0) {
@@ -272,9 +272,21 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
     throw createError('User not found', HTTP_STATUS.NOT_FOUND);
   }
 
-  const isValid = await bcrypt.compare(currentPassword, userResult.rows[0].password);
+  const existingPassword = userResult.rows[0].password;
+
+  // Usuario GitHub sin contraseña local: permitir establecerla sin currentPassword
+  if (!existingPassword) {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashedPassword, req.user.id]
+    );
+    return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Password set successfully' });
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, existingPassword);
   if (!isValid) {
-    throw createError('Current password is incorrect', HTTP_STATUS.UNAUTHORIZED);
+    throw createError('La contraseña actual es incorrecta', HTTP_STATUS.UNAUTHORIZED);
   }
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -283,7 +295,7 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
     [hashedPassword, req.user.id]
   );
 
-  res.status(HTTP_STATUS.OK).json({ success: true, message: 'Password changed successfully' });
+  return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Password changed successfully' });
 });
 
 // Desconectar GitHub

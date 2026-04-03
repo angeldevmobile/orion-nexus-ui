@@ -4,6 +4,7 @@ import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse, PaginationQuery } from '../types/api';
 import { CreateProjectRequest, UpdateProjectRequest } from '../types/project';
 import { asyncHandler, createError } from '../middleware/errorHandler';
+import { emailService } from '../services/emailService';
 
 // Crear proyecto
 export const createProject = asyncHandler(async (req: Request, res: Response) => {
@@ -34,10 +35,24 @@ export const createProject = asyncHandler(async (req: Request, res: Response) =>
   const project = result.rows[0];
 
   // Obtener info del owner
-  const ownerQuery = `SELECT id, username, email, avatar FROM users WHERE id = $1`;
+  const ownerQuery = `SELECT id, username, email, avatar, preferences FROM users WHERE id = $1`;
   const ownerResult = await pool.query(ownerQuery, [project.owner_id]);
 
-  project.owner = ownerResult.rows[0];
+  const owner = ownerResult.rows[0];
+  project.owner = owner;
+
+  // Enviar notificación si el usuario tiene habilitado notifEmail y notifProjects
+  const prefs = (owner.preferences ?? {}) as Record<string, unknown>;
+  if (prefs.notifEmail !== false && prefs.notifProjects !== false) {
+    emailService.sendProjectNotification(
+      owner.email,
+      owner.username,
+      project.name,
+      'creado exitosamente'
+    ).catch((err: Error) => {
+      console.error('Error enviando notificación de proyecto:', err.message);
+    });
+  }
 
   const response: ApiResponse = {
     success: true,

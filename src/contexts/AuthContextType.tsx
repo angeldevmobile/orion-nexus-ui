@@ -7,6 +7,7 @@ export interface UserProfile {
   avatar?: string;
   role: string;
   github_id?: string;
+  has_password?: boolean;
   preferences?: Record<string, unknown>;
 }
 

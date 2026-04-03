@@ -553,6 +553,49 @@ class EmailService {
       text: `${inviterName} te invitó a colaborar en ${projectName} en Orion Builder. Visita: ${process.env.FRONTEND_URL}/projects`
     });
   }
+
+  async sendProjectNotification(
+    email: string,
+    username: string,
+    projectName: string,
+    action: string
+  ): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0F172A;color:#e2e8f0;padding:32px;margin:0;">
+        <div style="max-width:560px;margin:0 auto;background:#1e293b;border-radius:16px;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#0891b2 0%,#06b6d4 100%);padding:32px;text-align:center;">
+            <h1 style="margin:0;color:white;font-size:24px;">📦 Orion Builder</h1>
+          </div>
+          <div style="padding:32px;">
+            <h2 style="color:#06b6d4;margin-top:0;">Actualización de tu proyecto</h2>
+            <p style="font-size:16px;line-height:1.6;">Hola <strong>${username}</strong>,</p>
+            <p style="font-size:16px;line-height:1.6;">Tu proyecto <strong style="color:#06b6d4;">${projectName}</strong> ha sido <strong>${action}</strong>.</p>
+            <div style="text-align:center;margin:32px 0;">
+              <a href="${process.env.FRONTEND_URL}/projects"
+                 style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0891b2,#06b6d4);color:white;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">
+                Ver mis proyectos
+              </a>
+            </div>
+            <p style="color:#64748b;font-size:12px;margin-top:32px;border-top:1px solid #334155;padding-top:16px;">
+              Para desactivar estas notificaciones, ve a
+              <a href="${process.env.FRONTEND_URL}/settings" style="color:#06b6d4;">Configuración → Notificaciones</a>.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: `Orion Builder — Proyecto "${projectName}" ${action}`,
+      html,
+      text: `Hola ${username}, tu proyecto "${projectName}" ha sido ${action}. Visita: ${process.env.FRONTEND_URL}/projects`,
+    });
+  }
 }
 
 export const emailService = new EmailService();
