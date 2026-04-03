@@ -41,10 +41,11 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     headers: {
-      // credentialless allows WebContainer (SharedArrayBuffer) AND lets CDN scripts
-      // load in iframes (unlike require-corp which blocks unpkg/tailwind CDN).
-      'Cross-Origin-Embedder-Policy': 'credentialless',
-      'Cross-Origin-Opener-Policy': 'same-origin',
+      // unsafe-none allows third-party iframes like Stripe to load without CORP conflicts.
+      // same-origin-allow-popups keeps tab isolation but allows Stripe 3D Secure popups.
+      // Note: SharedArrayBuffer is unavailable without require-corp/credentialless + same-origin.
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
     },
     fs: {
       allow: ['..']

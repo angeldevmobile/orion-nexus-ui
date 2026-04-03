@@ -23,6 +23,7 @@ import aiRoutes from './routes/ai';
 import userRoutes from './routes/users';
 import componentRoutes from './routes/components';
 import communityRoutes from './routes/community';
+import paymentRoutes from './routes/payment';
 
 const app = express();
 const server = createServer(app);
@@ -80,7 +81,13 @@ app.use('/api/', limiter);
 
 // Body parsing middleware
 const maxFileSize = process.env.MAX_FILE_SIZE || '10485760'; // 10MB default
-app.use(express.json({ limit: maxFileSize }));
+app.use(express.json({
+  limit: maxFileSize,
+  // Preservar el rawBody para verificar la firma del webhook de Stripe
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: maxFileSize }));
 
 // IMPORTANTE: Inicializar Passport
@@ -101,6 +108,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/components', componentRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check with more details
 app.get('/api/health', (req, res) => {

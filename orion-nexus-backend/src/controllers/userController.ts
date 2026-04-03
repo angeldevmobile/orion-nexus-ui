@@ -93,7 +93,7 @@ export const getUserById = asyncHandler(async (req: Request, res: Response) => {
   res.status(HTTP_STATUS.OK).json(response);
 });
 
-// Actualizar rol de usuario (solo admin) - CAMBIADO: Request en lugar de RequestWithUser
+// Actualizar rol de usuario (solo admin) 
 export const updateUserRole = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { role } = req.body;
@@ -123,7 +123,7 @@ export const updateUserRole = asyncHandler(async (req: Request, res: Response) =
   res.status(HTTP_STATUS.OK).json(response);
 });
 
-// Actualizar suscripción de usuario (solo admin) - CAMBIADO: Request en lugar de RequestWithUser
+// Actualizar suscripción de usuario (solo admin) 
 export const updateUserSubscription = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { subscription } = req.body;
@@ -153,7 +153,7 @@ export const updateUserSubscription = asyncHandler(async (req: Request, res: Res
   res.status(HTTP_STATUS.OK).json(response);
 });
 
-// Eliminar usuario (solo admin) y sus proyectos - CAMBIADO: Request en lugar de RequestWithUser
+// Eliminar usuario (solo admin) y sus proyectos
 export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -182,7 +182,7 @@ export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   res.status(HTTP_STATUS.OK).json(response);
 });
 
-// Obtener estadísticas del usuario - CAMBIADO: Request en lugar de RequestWithUser
+// Obtener estadísticas del usuario 
 export const getUserStats = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user?.id;
 

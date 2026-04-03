@@ -4,7 +4,7 @@ import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse, PaginationQuery } from '../types/api';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 
-// Crear post - CAMBIADO: Request en lugar de RequestWithUser
+// Crear post
 export const createPost = asyncHandler(async (req: Request, res: Response) => {
   const { title, content, category, tags, attachments } = req.body;
 
@@ -422,6 +422,25 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
   res.status(HTTP_STATUS.CREATED).json(response);
 });
 
+// Incrementar vistas de un post
+export const incrementViews = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const result = await pool.query(
+    `UPDATE community_posts SET views_count = COALESCE(views_count, 0) + 1 WHERE id = $1 RETURNING views_count`,
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    throw createError('Post not found', HTTP_STATUS.NOT_FOUND);
+  }
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: { views_count: result.rows[0].views_count }
+  });
+});
+
 // Marcar como resuelto/no resuelto - CAMBIADO: Request en lugar de RequestWithUser
 export const toggleResolved = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -449,6 +468,32 @@ export const toggleResolved = asyncHandler(async (req: Request, res: Response) =
     success: true,
     message: `Post marked as ${newResolvedState ? 'resolved' : 'unresolved'}`,
     data: { isResolved: newResolvedState }
+  };
+
+  res.status(HTTP_STATUS.OK).json(response);
+});
+
+// Leaderboard - top usuarios por likes totales en sus posts
+export const getLeaderboard = asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query(`
+    SELECT
+      u.id,
+      u.username,
+      u.avatar,
+      COUNT(DISTINCT p.id)::int        AS posts_count,
+      COALESCE(SUM(p.likes_count), 0)::int AS total_likes,
+      COALESCE(SUM(p.views_count), 0)::int AS total_views
+    FROM users u
+    INNER JOIN community_posts p ON p.author_id = u.id
+    GROUP BY u.id, u.username, u.avatar
+    ORDER BY total_likes DESC, posts_count DESC
+    LIMIT 20
+  `);
+
+  const response: ApiResponse = {
+    success: true,
+    message: 'Leaderboard retrieved successfully',
+    data: result.rows
   };
 
   res.status(HTTP_STATUS.OK).json(response);

@@ -5,12 +5,40 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Zap, Crown, Building2 } from "lucide-react";
 import { PaymentModal } from "@/components/PaymentModal";
 import { ContactSalesModal } from "@/components/ContactSalesModal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Pricing() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [contactSalesOpen, setContactSalesOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState({ name: "", price: "" });
+  const { toast } = useToast();
+
+  // Detectar redirect de Stripe Checkout (success o cancelled)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    const plan = params.get("plan");
+
+    if (payment === "success" && plan) {
+      toast({
+        title: "¡Pago exitoso!",
+        description: `Tu suscripción al plan ${plan.charAt(0).toUpperCase() + plan.slice(1)} ha sido activada.`,
+      });
+    } else if (payment === "cancelled") {
+      toast({
+        title: "Pago cancelado",
+        description: "No se realizó ningún cargo. Puedes intentarlo de nuevo cuando quieras.",
+        variant: "destructive",
+      });
+    }
+
+    // Limpiar query params de la URL sin recargar la página
+    if (payment) {
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+    }
+  }, [toast]);
 
   const handlePlanClick = (planName: string, planPrice: string) => {
     if (planName === "Enterprise") {
@@ -180,7 +208,7 @@ export default function Pricing() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-4">
-                  {["💳 Tarjeta de Crédito", "🏦 Transferencia Bancaria", "💰 PayPal", "🔷 Stripe"].map((method) => (
+                  {["💳 Visa", "💳 Mastercard", "💳 American Express"].map((method) => (
                     <div key={method} className="px-4 py-2 rounded-lg bg-secondary border border-border">
                       <span className="text-sm font-medium">{method}</span>
                     </div>

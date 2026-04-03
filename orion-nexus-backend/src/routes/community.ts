@@ -6,11 +6,18 @@ import {
   updatePost,
   deletePost,
   likePost,
-  addComment
+  addComment,
+  incrementViews,
+  getLeaderboard
 } from '../controllers/communityController';
 import { authenticateToken } from '../middleware/auth';
 
 const router: Router = Router();
+
+// @route   GET /api/community/leaderboard
+// @desc    Get top users by likes
+// @access  Public
+router.get('/leaderboard', getLeaderboard);
 
 // @route   POST /api/community/posts
 // @desc    Create new community post
@@ -36,6 +43,11 @@ router.put('/posts/:id', authenticateToken, updatePost);
 // @desc    Delete post
 // @access  Private
 router.delete('/posts/:id', authenticateToken, deletePost);
+
+// @route   PATCH /api/community/posts/:id/view
+// @desc    Increment view count
+// @access  Public
+router.patch('/posts/:id/view', incrementViews);
 
 // @route   POST /api/community/posts/:id/like
 // @desc    Like/Unlike post

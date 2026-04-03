@@ -1,13 +1,221 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { CreditCard, Building2, Wallet, Zap } from "lucide-react";
+import { Lock, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Elements,
+  CardNumberElement,
+  CardExpiryElement,
+  CardCvcElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import type { StripeCardNumberElementChangeEvent } from "@stripe/stripe-js";
+import { apiService } from "@/service/ApiService";
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
+
+// ─── Iconos SVG de red de tarjeta ────────────────────────────────────────────
+
+function VisaIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="38"
+      height="24"
+      viewBox="0 0 38 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={`transition-all duration-300 rounded-sm ${
+        active ? "opacity-100" : "opacity-25 grayscale"
+      }`}
+    >
+      <rect width="38" height="24" rx="4" fill="#1A1F71" />
+      <text x="19" y="16.5" textAnchor="middle" fill="white" fontSize="10" fontWeight="800" fontFamily="Arial Black, Arial, sans-serif" letterSpacing="1.5">VISA</text>
+    </svg>
+  );
+}
+
+function MastercardIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="38"
+      height="24"
+      viewBox="0 0 38 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={`transition-all duration-300 rounded-sm ${
+        active ? "opacity-100" : "opacity-25 grayscale"
+      }`}
+    >
+      <rect width="38" height="24" rx="4" fill="#252525" />
+      <circle cx="15" cy="12" r="7" fill="#EB001B" />
+      <circle cx="23" cy="12" r="7" fill="#F79E1B" />
+      <path d="M19 6.27a7 7 0 0 1 0 11.46A7 7 0 0 1 19 6.27z" fill="#FF5F00" />
+    </svg>
+  );
+}
+
+// ─── Estilo para campos de Stripe (tema oscuro) ───────────────────────────────
+
+// Fondo del campo: slate-800/60 ≈ #1e293b — igualamos iconColor para ocultarlos
+const baseStripeStyle = {
+  base: {
+    fontSize: "15px",
+    color: "#f1f5f9",
+    fontFamily: "Inter, system-ui, sans-serif",
+    fontSmoothing: "antialiased",
+    iconColor: "#1e293b", // invisible sobre el fondo, evita íconos rotos de Stripe
+    "::placeholder": { color: "#475569" },
+  },
+  invalid: { color: "#f87171", iconColor: "#f87171" },
+};
+
+const cardNumberOptions = { style: baseStripeStyle, showIcon: false };
+const cardExpiryOptions = { style: baseStripeStyle };
+const cardCvcOptions    = { style: baseStripeStyle };
+
+// ─── Formulario de tarjeta ────────────────────────────────────────────────────
+
+interface CardFormProps {
+  planName: string;
+  planPrice: string;
+  onSuccess: () => void;
+}
+
+function CardPaymentForm({ planName, planPrice, onSuccess }: CardFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [cardBrand, setCardBrand] = useState<string>("");
+  const [cardName, setCardName] = useState("");
+
+  const handleCardChange = (e: StripeCardNumberElementChangeEvent) => {
+    setCardBrand(e.brand || "");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setLoading(true);
+    try {
+      const res = await apiService.post<{ success: boolean; data: { clientSecret: string } }>(
+        "/payments/create-payment-intent",
+        { planName }
+      );
+      const cardNumber = elements.getElement(CardNumberElement);
+      if (!cardNumber) throw new Error("Card element not mounted");
+
+      const { error, paymentIntent } = await stripe.confirmCardPayment(res.data.clientSecret, {
+        payment_method: { card: cardNumber, billing_details: { name: cardName } },
+      });
+
+      if (error) {
+        toast({ title: "Error en el pago", description: error.message, variant: "destructive" });
+      } else if (paymentIntent?.status === "succeeded") {
+        toast({ title: "¡Pago exitoso!", description: `Plan ${planName} activado.` });
+        onSuccess();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "No se pudo procesar el pago.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showVisa       = cardBrand === "visa";
+  const showMastercard = cardBrand === "mastercard";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Titular */}
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-slate-300">Nombre del Titular</Label>
+        <Input
+          value={cardName}
+          onChange={(e) => setCardName(e.target.value)}
+          placeholder="Como aparece en la tarjeta"
+          required
+          className="h-11 bg-slate-800/60 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:ring-blue-500 focus-visible:border-blue-500"
+        />
+      </div>
+
+      {/* Número de tarjeta con iconos integrados */}
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-slate-300">Número de Tarjeta</Label>
+        <div className="flex h-11 rounded-md border border-slate-700 bg-slate-800/60 px-3 items-center gap-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+          <CardNumberElement
+            options={cardNumberOptions}
+            onChange={handleCardChange}
+            className="flex-1 min-w-0"
+          />
+          {/* Logo de marca detectada — solo aparece al escribir */}
+          <div className="flex items-center shrink-0">
+            {showVisa       && <VisaIcon active />}
+            {showMastercard && <MastercardIcon active />}
+          </div>
+        </div>
+      </div>
+
+      {/* Expiración + CVC */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-slate-300">Vencimiento</Label>
+          <div className="flex h-11 rounded-md border border-slate-700 bg-slate-800/60 px-3 items-center focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+            <CardExpiryElement options={cardExpiryOptions} className="w-full" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-slate-300">CVC</Label>
+          <div className="flex h-11 rounded-md border border-slate-700 bg-slate-800/60 px-3 items-center focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+            <CardCvcElement options={cardCvcOptions} className="w-full" />
+          </div>
+        </div>
+      </div>
+
+      {/* Botón de pago */}
+      <Button
+        type="submit"
+        disabled={loading || !stripe}
+        className="w-full h-12 text-base font-semibold bg-blue-600 hover:bg-blue-500 text-white mt-2 transition-all hover:scale-[1.01] disabled:opacity-60"
+      >
+        {loading ? (
+          <span className="flex items-center gap-2">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Procesando...
+          </span>
+        ) : (
+          <span className="flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            Pagar ${planPrice}/mes
+          </span>
+        )}
+      </Button>
+
+      {/* Badges de seguridad */}
+      <div className="flex items-center justify-center gap-4 pt-1">
+        <span className="flex items-center gap-1.5 text-xs text-slate-500">
+          <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+          Cifrado SSL
+        </span>
+        <span className="text-slate-600">·</span>
+        <span className="text-xs text-slate-500">Procesado por Stripe</span>
+        <span className="text-slate-600">·</span>
+        <span className="text-xs text-slate-500">Sin guardar datos</span>
+      </div>
+    </form>
+  );
+}
+
+// ─── Modal principal ──────────────────────────────────────────────────────────
 
 interface PaymentModalProps {
   open: boolean;
@@ -17,315 +225,47 @@ interface PaymentModalProps {
 }
 
 export function PaymentModal({ open, onOpenChange, planName, planPrice }: PaymentModalProps) {
-  const [selectedMethod, setSelectedMethod] = useState("credit-card");
-  const { toast } = useToast();
-
-  const handleSubmit = (e: React.FormEvent, method: string) => {
-    e.preventDefault();
-    toast({
-      title: "¡Pago procesado!",
-      description: `Tu suscripción al plan ${planName} ha sido activada con ${method}.`,
-    });
-    onOpenChange(false);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Completar Pago - Plan {planName}</DialogTitle>
-          <DialogDescription>
-            Selecciona tu método de pago preferido para activar tu suscripción de ${planPrice}/mes
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className="max-w-md p-0 overflow-hidden border-slate-700 bg-slate-900"
+        onFocusOutside={(e) => e.preventDefault()}
+      >
+        <DialogTitle className="sr-only">Suscripción Plan {planName}</DialogTitle>
+        <DialogDescription className="sr-only">
+          Formulario de pago para activar el Plan {planName} a ${planPrice}/mes.
+        </DialogDescription>
 
-        <Tabs value={selectedMethod} onValueChange={setSelectedMethod} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="credit-card" className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4" />
-              <span className="hidden sm:inline">Tarjeta</span>
-            </TabsTrigger>
-            <TabsTrigger value="bank-transfer" className="flex items-center gap-2">
-              <Building2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Banco</span>
-            </TabsTrigger>
-            <TabsTrigger value="paypal" className="flex items-center gap-2">
-              <Wallet className="w-4 h-4" />
-              <span className="hidden sm:inline">PayPal</span>
-            </TabsTrigger>
-            <TabsTrigger value="stripe" className="flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              <span className="hidden sm:inline">Stripe</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Credit Card Form */}
-          <TabsContent value="credit-card" className="animate-fade-in">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle>Pago con Tarjeta de Crédito/Débito</CardTitle>
-                <CardDescription>Ingresa los datos de tu tarjeta de forma segura</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={(e) => handleSubmit(e, "Tarjeta de Crédito")} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="card-name">Nombre del Titular</Label>
-                    <Input
-                      id="card-name"
-                      placeholder="Juan Pérez"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="card-number">Número de Tarjeta</Label>
-                    <Input
-                      id="card-number"
-                      placeholder="1234 5678 9012 3456"
-                      maxLength={19}
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="expiry">Fecha de Expiración</Label>
-                      <Input
-                        id="expiry"
-                        placeholder="MM/AA"
-                        maxLength={5}
-                        required
-                        className="transition-all focus:scale-[1.02]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cvv">CVV</Label>
-                      <Input
-                        id="cvv"
-                        type="password"
-                        placeholder="123"
-                        maxLength={4}
-                        required
-                        className="transition-all focus:scale-[1.02]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-4">
-                    <Button type="submit" className="w-full bg-primary hover:bg-primary/90 transition-all hover:scale-[1.02]">
-                      Pagar ${planPrice}/mes
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Bank Transfer Form */}
-          <TabsContent value="bank-transfer" className="animate-fade-in">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle>Transferencia Bancaria</CardTitle>
-                <CardDescription>Realiza una transferencia a nuestra cuenta bancaria</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={(e) => handleSubmit(e, "Transferencia Bancaria")} className="space-y-4">
-                  <div className="bg-secondary/50 p-4 rounded-lg space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Banco:</span>
-                      <span className="font-medium">Banco Nacional</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Cuenta:</span>
-                      <span className="font-medium">1234-5678-9012</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">CLABE:</span>
-                      <span className="font-medium">012345678901234567</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Beneficiario:</span>
-                      <span className="font-medium">Lovable Platform S.A.</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transfer-name">Nombre Completo</Label>
-                    <Input
-                      id="transfer-name"
-                      placeholder="Tu nombre completo"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transfer-ref">Número de Referencia</Label>
-                    <Input
-                      id="transfer-ref"
-                      placeholder="REF-123456"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transfer-date">Fecha de Transferencia</Label>
-                    <Input
-                      id="transfer-date"
-                      type="date"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="pt-4">
-                    <Button type="submit" className="w-full bg-primary hover:bg-primary/90 transition-all hover:scale-[1.02]">
-                      Confirmar Transferencia
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* PayPal Form */}
-          <TabsContent value="paypal" className="animate-fade-in">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle>Pago con PayPal</CardTitle>
-                <CardDescription>Conecta con tu cuenta de PayPal de forma segura</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={(e) => handleSubmit(e, "PayPal")} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="paypal-email">Email de PayPal</Label>
-                    <Input
-                      id="paypal-email"
-                      type="email"
-                      placeholder="tu@email.com"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="bg-secondary/50 p-4 rounded-lg space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Serás redirigido a PayPal para completar tu pago de forma segura.
-                    </p>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                      <span>Conexión segura SSL</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Método de pago en PayPal</Label>
-                    <RadioGroup defaultValue="balance">
-                      <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors">
-                        <RadioGroupItem value="balance" id="balance" />
-                        <Label htmlFor="balance" className="cursor-pointer flex-1">Saldo de PayPal</Label>
-                      </div>
-                      <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors">
-                        <RadioGroupItem value="card" id="pp-card" />
-                        <Label htmlFor="pp-card" className="cursor-pointer flex-1">Tarjeta vinculada</Label>
-                      </div>
-                      <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors">
-                        <RadioGroupItem value="bank" id="pp-bank" />
-                        <Label htmlFor="pp-bank" className="cursor-pointer flex-1">Cuenta bancaria</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="pt-4">
-                    <Button type="submit" className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white transition-all hover:scale-[1.02]">
-                      Continuar con PayPal
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Stripe Form */}
-          <TabsContent value="stripe" className="animate-fade-in">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle>Pago con Stripe</CardTitle>
-                <CardDescription>Procesamiento rápido y seguro con Stripe</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={(e) => handleSubmit(e, "Stripe")} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="stripe-email">Email</Label>
-                    <Input
-                      id="stripe-email"
-                      type="email"
-                      placeholder="tu@email.com"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="stripe-card">Información de Tarjeta</Label>
-                    <Input
-                      id="stripe-card"
-                      placeholder="1234 5678 9012 3456"
-                      required
-                      className="transition-all focus:scale-[1.02]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="stripe-expiry">MM / AA</Label>
-                      <Input
-                        id="stripe-expiry"
-                        placeholder="12 / 25"
-                        required
-                        className="transition-all focus:scale-[1.02]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="stripe-cvc">CVC</Label>
-                      <Input
-                        id="stripe-cvc"
-                        placeholder="123"
-                        maxLength={3}
-                        required
-                        className="transition-all focus:scale-[1.02]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-secondary/50 p-4 rounded-lg space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Zap className="w-4 h-4 text-primary" />
-                      <span className="font-medium">Pago instantáneo</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Tu pago será procesado de forma inmediata y segura por Stripe.
-                    </p>
-                  </div>
-
-                  <div className="pt-4">
-                    <Button type="submit" className="w-full bg-[#635bff] hover:bg-[#5348e8] text-white transition-all hover:scale-[1.02]">
-                      Pagar ${planPrice}/mes con Stripe
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span>Conexión segura • Tus datos están protegidos</span>
+        {/* Cabecera con gradiente */}
+        <div className="px-6 pt-6 pb-5 bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-700/60">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-blue-400 uppercase tracking-wider mb-1">
+                Suscripción
+              </p>
+              <h2 className="text-xl font-bold text-white">Plan {planName}</h2>
+              <p className="text-slate-400 text-sm mt-0.5">
+                ${planPrice} / mes · Cancela cuando quieras
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-bold text-white">${planPrice}</p>
+              <p className="text-xs text-slate-400">por mes</p>
+            </div>
+          </div>
         </div>
+
+        {/* Formulario */}
+        <div className="px-6 py-5">
+          <Elements stripe={stripePromise}>
+            <CardPaymentForm
+              planName={planName}
+              planPrice={planPrice}
+              onSuccess={() => onOpenChange(false)}
+            />
+          </Elements>
+        </div>
+
       </DialogContent>
     </Dialog>
   );

@@ -117,7 +117,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   res.status(HTTP_STATUS.OK).json(response);
 });
 
-// Obtener perfil - CAMBIADO: Request en lugar de RequestWithUser
+// Obtener perfil
 export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   const userResult = await pool.query(
     'SELECT id, username, email, avatar, role, github_id, preferences, created_at, updated_at, (password IS NOT NULL) as has_password FROM users WHERE id = $1',
@@ -137,7 +137,7 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   res.status(HTTP_STATUS.OK).json(response);
 });
 
-// Actualizar perfil - CAMBIADO: Request en lugar de RequestWithUser
+// Actualizar perfil
 export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
   const allowedUpdates = ['username', 'avatar', 'preferences', 'profile'];
   const updates: ProfileUpdates = {};
