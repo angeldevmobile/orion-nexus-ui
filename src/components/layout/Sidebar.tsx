@@ -12,6 +12,7 @@ import {
   HelpCircle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProject } from "@/hooks/useProject";  
 
 const navItems = [
   { to: "/dashboard", icon: Home, label: "Dashboard" },
@@ -27,10 +28,16 @@ const navItems = [
 ];
 
 export const Sidebar = () => {
+  const { hasActiveProject } = useProject();  
+
+  const visibleItems = navItems.filter(item =>   
+    item.to !== '/editor' || hasActiveProject
+  );
+
   return (
     <aside className="fixed left-0 top-16 bottom-0 w-64 border-r border-border bg-card p-4 overflow-y-auto">
       <nav className="space-y-1">
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (   
           <NavLink
             key={item.to}
             to={item.to}

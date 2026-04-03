@@ -59,8 +59,8 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      await authService.login(formData.signin);
-      login(); 
+      const response = await authService.login(formData.signin);
+      login(response.token, response.user);
       toast({
         title: "¡Bienvenido de vuelta!",
         description: "Has iniciado sesión correctamente",
@@ -98,8 +98,8 @@ export default function Auth() {
     }
 
     try {
-      await authService.register(formData.signup);
-      login(); 
+      const response = await authService.register(formData.signup);
+      login(response.token, response.user);
       toast({
         title: "¡Cuenta creada!",
         description: "Tu cuenta ha sido creada exitosamente",

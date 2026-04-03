@@ -10,16 +10,12 @@ import {
 	Settings2,
 	FileCode,
 	Layout,
-	Home,
-	MessageSquare,
-	FolderOpen,
-	Settings,
-	Rocket,
-	Upload,
 	Plus,
 	Sparkles,
 	Trash2,
+	FolderOpen,
 } from "lucide-react";
+import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import FileExplorer from "@/editor/FileExplorer";
@@ -46,14 +42,8 @@ import {
 } from "@/editor/runtime/orionContainer";
 import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
 import { authService } from "@/service/AuthService";
+import { apiService } from "@/service/ApiService";
 
-const NAV_ITEMS = [
-	{ to: "/dashboard",  icon: Home,          label: "Dashboard" },
-	{ to: "/ai-chat",    icon: MessageSquare, label: "AI Chat" },
-	{ to: "/editor",     icon: Code2,         label: "Editor" },
-	{ to: "/projects",   icon: FolderOpen,    label: "Proyectos" },
-	{ to: "/settings",   icon: Settings,      label: "Ajustes" },
-];
 
 export default function Editor() {
 	const {
@@ -184,6 +174,13 @@ export default function Editor() {
 
 			setHasProject(true);
 			toast({ title: "Proyecto creado", description: `${(template as ProjectTemplate).name} listo` });
+
+			// Guardar en base de datos (silencioso si no hay sesión activa)
+			apiService.post('/projects', {
+				name: (template as ProjectTemplate).name,
+				description: '',
+				isPublic: false,
+			}).catch(() => { /* No autenticado o error de red — el proyecto existe localmente */ });
 		} catch (error) {
 			setConsoleLines((l) => [...l, `❌ Error: ${error}`]);
 			toast({ title: "Error", description: String(error), variant: "destructive" });
@@ -238,64 +235,12 @@ export default function Editor() {
 		});
 	};
 
-	// ── Sidebar (shared between both views) ─────────────────────────────────────
-	const Sidebar = () => {
-		const user = authService.getUser();
-		const initials = (user?.username ?? user?.email ?? "?").slice(0, 2).toUpperCase();
-		return (
-			<aside className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border bg-card">
-				<Link
-					to="/"
-					className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-5 hover:bg-primary/20 transition-colors"
-					title="Inicio"
-				>
-					<Rocket className="w-4 h-4 text-primary" />
-				</Link>
-
-				<nav className="flex flex-col gap-1 flex-1">
-					{NAV_ITEMS.map(({ to, icon: Icon, label }) => (
-						<Link
-							key={to}
-							to={to}
-							title={label}
-							className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-								location.pathname === to
-									? "bg-primary text-primary-foreground"
-									: "text-muted-foreground hover:bg-secondary hover:text-foreground"
-							}`}
-						>
-							<Icon className="w-4 h-4" />
-						</Link>
-					))}
-				</nav>
-
-				<div
-					className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
-					title={user?.username ?? user?.email ?? "Usuario"}
-					onClick={() => navigate("/settings")}
-				>
-					{user?.avatar
-						? <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
-						: initials}
-				</div>
-
-				<Button
-					size="sm"
-					onClick={() => navigate("/projects")}
-					className="w-9 h-9 p-0 bg-primary hover:bg-primary/90"
-					title="Proyectos"
-				>
-					<Upload className="w-4 h-4" />
-				</Button>
-			</aside>
-		);
-	};
 
 	// ── Loading state ────────────────────────────────────────────────────────────
 	if (hasProject === null) {
 		return (
 			<div className="h-screen bg-background flex overflow-hidden">
-				<Sidebar />
+				<IconSidebar />
 				<div className="flex-1 flex items-center justify-center">
 					<div className="flex items-center gap-3 text-muted-foreground">
 						<div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -310,7 +255,7 @@ export default function Editor() {
 	if (!hasProject) {
 		return (
 			<div className="h-screen bg-background flex overflow-hidden">
-				<Sidebar />
+				<IconSidebar />
 
 				<div className="flex-1 flex items-center justify-center p-8">
 					<div className="w-full max-w-xs text-center space-y-6">
@@ -351,7 +296,7 @@ export default function Editor() {
 	// ── Full editor (project exists) ─────────────────────────────────────────────
 	return (
 		<div className="h-screen bg-background flex overflow-hidden">
-			<Sidebar />
+			<IconSidebar />
 
 			{/* File Explorer */}
 			<div className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">

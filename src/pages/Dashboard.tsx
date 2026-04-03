@@ -1,4 +1,4 @@
-import { Sidebar } from "@/components/layout/Sidebar";
+import { IconSidebar } from "@/components/layout/IconSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Zap, Code2, Users, TrendingUp } from "lucide-react";
@@ -21,8 +21,8 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 p-8 pt-24">
+        <IconSidebar />
+        <main className="flex-1 ml-14 p-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-8">
               <div>

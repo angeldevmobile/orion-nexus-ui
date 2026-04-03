@@ -3,26 +3,61 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Rocket, Zap, Code2, Sparkles, Shield, Users, ArrowRight, Upload } from "lucide-react";
+import { Rocket, Zap, Code2, Sparkles, Shield, Users, ArrowRight, Upload, Heart, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 import { UploadProjectModal } from "@/components/UploadProjectModal";
 import { ViewProjectModal } from "@/components/ViewProjectModal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiService } from "@/service/ApiService";
+
+type Project = {
+  name: string;
+  author?: string;
+  description: string;
+  likes?: number;
+  views?: number;
+  image?: string;
+  url?: string;
+};
+
+interface ApiPostRaw {
+  id: string;
+  title: string;
+  content: string;
+  author: { username: string };
+  likes_count: number;
+  views_count?: number;
+  attachments?: string[];
+}
+
+interface ApiResponse {
+  data: ApiPostRaw[];
+}
 
 const Index = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [viewProjectModalOpen, setViewProjectModalOpen] = useState(false);
-  type Project = {
-    name: string;
-    author?: string;
-    description: string;
-    likes?: number;
-    views?: number;
-    image?: string;
-    // Add other fields as needed
-  };
-
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [communityProjects, setCommunityProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    apiService.get<ApiResponse>('/community/posts')
+      .then((res) => {
+        const mapped: Project[] = (res.data || []).map((p) => ({
+          name: p.title,
+          author: p.author?.username,
+          description: p.content,
+          likes: p.likes_count,
+          views: p.views_count,
+          image: "🚀",
+          url: p.attachments?.[0],
+        }));
+        setCommunityProjects(mapped);
+      })
+      .catch(() => setCommunityProjects([]))
+      .finally(() => setLoadingProjects(false));
+  }, []);
 
   const handleViewProject = (project: Project) => {
     setSelectedProject(project);
@@ -293,91 +328,57 @@ const Index = () => {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
-                {
-                  name: "Dashboard Analytics Pro",
-                  author: "María García",
-                  description: "Dashboard completo con gráficas en tiempo real y analytics avanzado",
-                  likes: 234,
-                  views: 1200,
-                  image: "📊"
-                },
-                {
-                  name: "E-commerce Moderno",
-                  author: "Carlos Ruiz",
-                  description: "Tienda online con carrito, pagos y gestión de inventario",
-                  likes: 189,
-                  views: 980,
-                  image: "🛒"
-                },
-                {
-                  name: "App de Finanzas",
-                  author: "Ana Martínez",
-                  description: "Aplicación para gestionar gastos personales y presupuestos",
-                  likes: 156,
-                  views: 750,
-                  image: "💰"
-                },
-                {
-                  name: "Red Social Fitness",
-                  author: "Diego López",
-                  description: "Plataforma social para compartir rutinas y progresos de ejercicio",
-                  likes: 203,
-                  views: 1100,
-                  image: "💪"
-                },
-                {
-                  name: "Portfolio Interactivo",
-                  author: "Laura Sánchez",
-                  description: "Portfolio personal con animaciones 3D y efectos modernos",
-                  likes: 178,
-                  views: 890,
-                  image: "🎨"
-                },
-                {
-                  name: "Sistema de Reservas",
-                  author: "Roberto Torres",
-                  description: "App para gestionar reservas de restaurantes y eventos",
-                  likes: 142,
-                  views: 650,
-                  image: "📅"
-                }
-              ].map((project, idx) => (
-                <Card 
-                  key={project.name}
-                  className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
-                  style={{ animationDelay: `${idx * 0.1}s` }}
-                >
-                  <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform">
-                    {project.image}
-                  </div>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">
-                      por {project.author}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {project.description}
-                    </p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>❤️ {project.likes} likes</span>
-                      <span>👁️ {project.views} vistas</span>
+            {loadingProjects ? (
+              <div className="text-center py-16 text-muted-foreground">Cargando proyectos...</div>
+            ) : communityProjects.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground space-y-2">
+                <p className="text-lg font-medium">Aún no hay proyectos publicados</p>
+                <p className="text-sm">¡Sé el primero en compartir tu proyecto con la comunidad!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {communityProjects.map((project, idx) => (
+                  <Card
+                    key={idx}
+                    className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
+                    style={{ animationDelay: `${idx * 0.1}s` }}
+                  >
+                    <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform">
+                      {project.image}
                     </div>
-                    <Button
-                      variant="outline"
-                      className="w-full transition-all hover:scale-[1.02]"
-                      size="sm"
-                      onClick={() => handleViewProject(project)}
-                    >
-                      Ver Proyecto
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{project.name}</CardTitle>
+                      {project.author && (
+                        <CardDescription className="text-xs text-muted-foreground">
+                          por {project.author}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {project.description}
+                      </p>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-3.5 h-3.5" /> {project.likes ?? 0}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5" /> {project.views ?? 0} vistas
+                        </span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full transition-all hover:scale-[1.02]"
+                        size="sm"
+                        onClick={() => handleViewProject(project)}
+                      >
+                        Ver Proyecto
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
             <div className="text-center mt-12">
               <Button variant="outline" size="lg" asChild>

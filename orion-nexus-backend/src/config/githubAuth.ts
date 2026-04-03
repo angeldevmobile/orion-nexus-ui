@@ -66,6 +66,11 @@ passport.use(
             [profile.username, email, githubId, "user"]
           );
           user = insertResult.rows[0];
+        } else if (!user.github_id) {
+          await pool.query(
+            'UPDATE users SET github_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [githubId, user.id]
+          );
         }
 
         const expressUser: Express.User = {

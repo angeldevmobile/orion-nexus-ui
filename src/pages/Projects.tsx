@@ -1,108 +1,131 @@
-import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Code2, ExternalLink, Copy, Trash2 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { ViewProjectModal } from "@/components/ViewProjectModal";
-import { useState } from "react";
+import { Plus, Trash2, Clock, FolderX, Code2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { apiService } from "@/service/ApiService";
+import { useToast } from "@/hooks/use-toast";
+import { IconSidebar } from "@/components/layout/IconSidebar";
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ApiResponse {
+  data: Project[];
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "ahora mismo";
+  if (mins < 60) return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `hace ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `hace ${days} día${days > 1 ? "s" : ""}`;
+}
 
 export default function Projects() {
-  const [viewProjectModalOpen, setViewProjectModalOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleOpenProject = (project: any) => {
-    setSelectedProject(project);
-    setViewProjectModalOpen(true);
+  const fetchProjects = () => {
+    setLoading(true);
+    apiService.get<ApiResponse>("/projects")
+      .then((res) => setProjects(res.data || []))
+      .catch(() => setProjects([]))
+      .finally(() => setLoading(false));
   };
 
-  const projects = [
-    {
-      name: "E-commerce Dashboard",
-      description: "Full-featured admin dashboard with analytics",
-      status: "deployed",
-      framework: "React",
-      lastUpdate: "2 hours ago",
-    },
-    {
-      name: "Landing Page",
-      description: "Modern SaaS landing with animations",
-      status: "active",
-      framework: "React",
-      lastUpdate: "5 hours ago",
-    },
-    {
-      name: "Mobile App UI",
-      description: "Cross-platform mobile interface",
-      status: "draft",
-      framework: "Flutter",
-      lastUpdate: "1 day ago",
-    },
-    {
-      name: "API Dashboard",
-      description: "REST API monitoring and management",
-      status: "active",
-      framework: "React",
-      lastUpdate: "3 days ago",
-    },
-  ];
+  useEffect(() => { fetchProjects(); }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    try {
+      await apiService.delete(`/projects/${id}`);
+      toast({ title: "Proyecto eliminado", description: `"${name}" fue eliminado.` });
+      fetchProjects();
+    } catch {
+      toast({ title: "Error", description: "No se pudo eliminar el proyecto.", variant: "destructive" });
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 p-8 pt-24">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-3xl font-heading font-bold mb-2">Projects</h1>
-                <p className="text-muted-foreground">Manage and deploy your applications</p>
+    <div className="h-screen bg-background flex overflow-hidden">
+      <IconSidebar />
+
+      <main className="flex-1 overflow-y-auto p-8 pt-10">
+        <div className="max-w-5xl mx-auto">
+
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-heading font-bold mb-1">Mis Proyectos</h1>
+              <p className="text-muted-foreground">Todos los proyectos que has creado</p>
+            </div>
+            <Button onClick={() => navigate("/ai-chat")} className="bg-primary hover:bg-primary/90">
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Proyecto
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-24 text-muted-foreground">
+              <div className="text-center space-y-3">
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-sm">Cargando proyectos...</p>
               </div>
-              <Button asChild className="bg-primary hover:bg-primary/90">
-                <Link to="/ai-chat">
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Project
-                </Link>
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-4">
+              <FolderX className="w-16 h-16 opacity-20" />
+              <p className="text-lg font-medium">No tienes proyectos aún</p>
+              <p className="text-sm">Crea tu primer proyecto desde el AI Chat o el Editor.</p>
+              <Button onClick={() => navigate("/ai-chat")} className="bg-primary hover:bg-primary/90 mt-2">
+                <Plus className="w-4 h-4 mr-2" />
+                Crear proyecto
               </Button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {projects.map((project) => (
-                <Card key={project.name} className="bg-card border-border hover:border-primary/50 transition-colors">
-                  <CardHeader>
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <Code2 className="w-5 h-5 text-primary" />
-                      </div>
-                      <Badge 
-                        variant={project.status === "deployed" ? "default" : "secondary"}
-                        className={project.status === "deployed" ? "bg-primary" : ""}
-                      >
-                        {project.status}
-                      </Badge>
+                <Card key={project.id} className="bg-card border-border hover:border-primary/50 transition-all group">
+                  <CardHeader className="pb-3">
+                    <div className="p-2 w-fit rounded-lg bg-primary/10 mb-3">
+                      <Code2 className="w-5 h-5 text-primary" />
                     </div>
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <CardDescription>{project.description}</CardDescription>
+                    <CardTitle className="text-base leading-tight">{project.name}</CardTitle>
+                    {project.description && (
+                      <CardDescription className="line-clamp-2">{project.description}</CardDescription>
+                    )}
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                      <span>{project.framework}</span>
-                      <span>{project.lastUpdate}</span>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Actualizado {timeAgo(project.updated_at)}</span>
                     </div>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         className="flex-1 transition-all hover:scale-[1.02]"
-                        onClick={() => handleOpenProject(project)}
+                        onClick={() => navigate("/editor")}
                       >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Open
+                        <Code2 className="w-4 h-4 mr-2" />
+                        Abrir
                       </Button>
-                      <Button variant="ghost" size="sm">
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(project.id, project.name)}
+                        title="Eliminar proyecto"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -110,15 +133,9 @@ export default function Projects() {
                 </Card>
               ))}
             </div>
-          </div>
-        </main>
-      </div>
-
-      <ViewProjectModal
-        open={viewProjectModalOpen}
-        onOpenChange={setViewProjectModalOpen}
-        project={selectedProject || { name: "", description: "", framework: "React" }}
-      />
+          )}
+        </div>
+      </main>
     </div>
   );
 }

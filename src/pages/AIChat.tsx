@@ -14,15 +14,10 @@ import {
   Trash2,
   ExternalLink,
   CheckCircle2,
-  Rocket,
   Upload,
-  Home,
-  MessageSquare,
-  FolderOpen,
-  Settings,
   ChevronRight,
 } from "lucide-react";
-import { authService } from "@/service/AuthService";
+import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChat, Message, WcStatus } from "@/hooks/useChat";
@@ -350,70 +345,11 @@ export default function AIChat() {
         transformOrigin: 'top left',
       };
 
-  const NAV_ITEMS = [
-    { to: '/dashboard',  icon: Home,          label: 'Dashboard' },
-    { to: '/ai-chat',    icon: MessageSquare, label: 'AI Chat' },
-    { to: '/editor',     icon: Code2,         label: 'Editor' },
-    { to: '/projects',   icon: FolderOpen,    label: 'Proyectos' },
-    { to: '/settings',   icon: Settings,      label: 'Ajustes' },
-  ];
 
   return (
     <div className="h-screen bg-background flex overflow-hidden">
 
-      {/* ── Icon sidebar ─────────────────────────────────────────── */}
-      <aside className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border bg-card">
-        <Link
-          to="/"
-          className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-5 hover:bg-primary/20 transition-colors"
-          title="Inicio"
-        >
-          <Rocket className="w-4 h-4 text-primary" />
-        </Link>
-
-        <nav className="flex flex-col gap-1 flex-1">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
-            <Link
-              key={to}
-              to={to}
-              title={label}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                location.pathname === to
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-            </Link>
-          ))}
-        </nav>
-
-        {/* User avatar */}
-        {(() => {
-          const user = authService.getUser();
-          const initials = (user?.username ?? user?.email ?? '?').slice(0, 2).toUpperCase();
-          return (
-            <div
-              className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
-              title={user?.username ?? user?.email ?? 'Usuario'}
-              onClick={() => navigate('/settings')}
-            >
-              {user?.avatar
-                ? <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
-                : initials}
-            </div>
-          );
-        })()}
-
-        <Button
-          size="sm"
-          onClick={() => navigate('/projects')}
-          className="w-9 h-9 p-0 bg-primary hover:bg-primary/90"
-          title="Publicar"
-        >
-          <Upload className="w-4 h-4" />
-        </Button>
-      </aside>
+      <IconSidebar />
 
       {/* ── Left: Chat ───────────────────────────────────────────── */}
       <div className="w-[360px] flex-shrink-0 border-r border-border flex flex-col bg-card">

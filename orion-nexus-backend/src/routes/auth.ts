@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getProfile, updateProfile } from '../controllers/authController';
+import { register, login, getProfile, updateProfile, changePassword, disconnectGithub } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 import { validateRegister, validateLogin } from '../middleware/validation';
 import { requestPasswordReset, resetPassword } from '../controllers/authController';
@@ -30,6 +30,11 @@ router.get('/profile', authenticateToken, getProfile);
 // @access  Private
 router.put('/profile', authenticateToken, updateProfile);
 
+// @route   PUT /api/auth/change-password
+// @desc    Change password (authenticated)
+// @access  Private
+router.put('/change-password', authenticateToken, changePassword);
+
 // @route   POST /api/auth/request-password-reset
 // @desc    Send password reset email
 // @access  Public
@@ -39,6 +44,11 @@ router.post('/request-password-reset', requestPasswordReset);
 // @desc    Reset password using token
 // @access  Public
 router.post('/reset-password', resetPassword);
+
+// @route   DELETE /api/auth/github
+// @desc    Disconnect GitHub from account
+// @access  Private
+router.delete('/github', authenticateToken, disconnectGithub);
 
 // @route   GET /api/auth/github
 // @desc    Initiate GitHub OAuth authentication

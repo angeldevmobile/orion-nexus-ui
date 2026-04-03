@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
+const API_BASE = 'http://localhost:5000/api';
+
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -24,13 +26,23 @@ export default function AuthCallback() {
     }
 
     if (token) {
-      localStorage.setItem('token', token);
-      login();
-      toast({
-        title: '¡Bienvenido!',
-        description: 'Has iniciado sesión exitosamente con GitHub',
-      });
-      navigate('/dashboard');
+      fetch(`${API_BASE}/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            login(token, data.data);
+            toast({
+              title: '¡Bienvenido!',
+              description: 'Has iniciado sesión exitosamente con GitHub',
+            });
+            navigate('/dashboard');
+          } else {
+            navigate('/auth');
+          }
+        })
+        .catch(() => navigate('/auth'));
     } else {
       navigate('/auth');
     }

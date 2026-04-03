@@ -1,5 +1,6 @@
 import React, { useState, ReactNode, useEffect } from 'react';
 import { ProjectContext, ProjectFile } from './ProjectContextType';
+import { fileManager } from '@/editor/FileManager';
 
 export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [files, setFiles] = useState<ProjectFile[]>([
@@ -70,6 +71,7 @@ body {
   
   const [activeFile, setActiveFile] = useState("App.tsx");
   const [generatedPreview, setGeneratedPreview] = useState("");
+  const [hasActiveProject, setHasActiveProject] = useState(false);
 
   const updateFileContent = (fileName: string, content: string) => {
     setFiles(prevFiles => 
@@ -104,6 +106,12 @@ body {
     return () => window.removeEventListener("updateCodePanel", handleCodeUpdate as EventListener);
   }, [activeFile]);
 
+  useEffect(() => {
+    fileManager.listDir("/").then(entries => {
+      setHasActiveProject(entries.length > 0);
+    }).catch(() => setHasActiveProject(false));
+  }, []);
+
   return (
     <ProjectContext.Provider
       value={{
@@ -115,6 +123,8 @@ body {
         setGeneratedPreview,
         updateFileContent,
         addFile,
+        hasActiveProject,
+        setHasActiveProject,
       }}
     >
       {children}

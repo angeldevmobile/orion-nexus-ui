@@ -1,4 +1,4 @@
-import { Sidebar } from "@/components/layout/Sidebar";
+import { IconSidebar } from "@/components/layout/IconSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,8 @@ export default function Help() {
   return (
     <div className="min-h-screen bg-background">
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 p-8 pt-24">
+        <IconSidebar />
+        <main className="flex-1 ml-14 p-8">
           <div className="max-w-5xl mx-auto">
             <div className="mb-8 text-center">
               <h1 className="text-4xl font-heading font-bold mb-4 flex items-center justify-center gap-2">

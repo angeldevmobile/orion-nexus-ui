@@ -120,7 +120,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 // Obtener perfil - CAMBIADO: Request en lugar de RequestWithUser
 export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   const userResult = await pool.query(
-    'SELECT id, username, email, avatar, role, preferences, created_at, updated_at FROM users WHERE id = $1',
+    'SELECT id, username, email, avatar, role, github_id, preferences, created_at, updated_at FROM users WHERE id = $1',
     [req.user?.id]
   );
   if (userResult.rows.length === 0) {
@@ -256,6 +256,56 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   res.status(HTTP_STATUS.OK).json({
     success: true,
     message: 'Password reset successful'
+  });
+});
+
+// Cambiar contraseña (autenticado)
+export const changePassword = asyncHandler(async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!req.user?.id) {
+    throw createError('User ID is required', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const userResult = await pool.query('SELECT password FROM users WHERE id = $1', [req.user.id]);
+  if (userResult.rows.length === 0) {
+    throw createError('User not found', HTTP_STATUS.NOT_FOUND);
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, userResult.rows[0].password);
+  if (!isValid) {
+    throw createError('Current password is incorrect', HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await pool.query(
+    'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+    [hashedPassword, req.user.id]
+  );
+
+  res.status(HTTP_STATUS.OK).json({ success: true, message: 'Password changed successfully' });
+});
+
+// Desconectar GitHub
+export const disconnectGithub = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user?.id) {
+    throw createError('User ID is required', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  await pool.query(
+    'UPDATE users SET github_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+    [req.user.id]
+  );
+
+  const userResult = await pool.query(
+    'SELECT id, username, email, avatar, role, github_id, preferences, created_at, updated_at FROM users WHERE id = $1',
+    [req.user.id]
+  );
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'GitHub disconnected successfully',
+    data: userResult.rows[0]
   });
 });
 

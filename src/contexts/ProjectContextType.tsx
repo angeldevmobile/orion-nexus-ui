@@ -1,5 +1,6 @@
 import { createContext } from "react";
 
+
 export interface ProjectFile {
   name: string;
   type: string;
@@ -16,6 +17,9 @@ export type ProjectContextType = {
   setGeneratedPreview: (preview: string) => void;
   updateFileContent: (fileName: string, content: string) => void;
   addFile: (file: ProjectFile) => void;
+  hasActiveProject: boolean;
+  setHasActiveProject: (value: boolean) => void;
 };
 
 export const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+
