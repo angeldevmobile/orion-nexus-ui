@@ -32,28 +32,28 @@ export function processWebContainerLog(rawLog: string): string {
 
   // Detectar tipos de mensajes importantes
   if (cleaned.includes('added') && cleaned.includes('packages')) {
-    return `📦 ${cleaned}`;
+    return `${cleaned}`;
   }
   
   if (cleaned.includes('found 0 vulnerabilities')) {
-    return '✅ Instalación completada sin vulnerabilidades';
+    return 'Instalación completada sin vulnerabilidades';
   }
   
   if (cleaned.includes('npm WARN')) {
-    return `⚠️ ${cleaned.replace('npm WARN', '').trim()}`;
+    return `${cleaned.replace('npm WARN', '').trim()}`;
   }
   
   if (cleaned.includes('ERROR') || cleaned.includes('error')) {
-    return `❌ ${cleaned}`;
+    return `${cleaned}`;
   }
 
   // Para logs de desarrollo del servidor
   if (cleaned.includes('Local:') || cleaned.includes('localhost')) {
-    return `🌍 ${cleaned}`;
+    return `${cleaned}`;
   }
 
   if (cleaned.includes('ready') || cleaned.includes('compiled')) {
-    return `✅ ${cleaned}`;
+    return `${cleaned}`;
   }
 
   // Filtrar logs muy cortos o sin información útil

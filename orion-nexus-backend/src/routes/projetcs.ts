@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createProject,
   getProjects,
+  getPublicProjects,
   getProjectById,
   updateProject,
   deleteProject,
@@ -22,6 +23,11 @@ router.post('/', authenticateToken, validateProject, createProject);
 // @desc    Get all projects (owned, collaborated, or public)
 // @access  Private
 router.get('/', authenticateToken, getProjects);
+
+// @route   GET /api/projects/public
+// @desc    Get public projects (optionally filtered by type=template)
+// @access  Public
+router.get('/public', getPublicProjects);
 
 // @route   GET /api/projects/:id
 // @desc    Get project by ID

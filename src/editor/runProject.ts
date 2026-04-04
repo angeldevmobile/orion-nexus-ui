@@ -7,23 +7,23 @@ export async function runProject(
   const log = onLog || console.log;
   
   try {
-    log("📦 Obteniendo snapshot del filesystem...");
+    log("Obteniendo snapshot del filesystem...");
     const snapshot = await dumpFsToJson();
     
-    log("🚀 Inicializando WebContainer...");
+    log("Inicializando WebContainer...");
     await initWebContainer(snapshot);
     
-    log("📥 Instalando dependencias...");
+    log("Instalando dependencias...");
     await installDependencies(log);
     
-    log("🌍 Iniciando servidor de desarrollo...");
+    log("Iniciando servidor de desarrollo...");
     const serverUrl = await runDevServer(log);
     
-    log(`✅ Servidor listo en: ${serverUrl}`);
+    log(`Servidor listo en: ${serverUrl}`);
     return serverUrl;
     
   } catch (error) {
-    log(`❌ Error ejecutando proyecto: ${error}`);
+    log(`Error ejecutando proyecto: ${error}`);
     throw error;
   }
 }

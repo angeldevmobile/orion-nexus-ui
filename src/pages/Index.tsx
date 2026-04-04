@@ -3,13 +3,12 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Rocket, Zap, Code2, Sparkles, Shield, Users, ArrowRight, Upload, Heart, Eye } from "lucide-react";
+import { Rocket, Zap, Code2, Sparkles, Shield, Users, ArrowRight, Upload, Heart, Eye, Bookmark, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import { UploadProjectModal } from "@/components/UploadProjectModal";
 import { ViewProjectModal } from "@/components/ViewProjectModal";
 import { useState, useEffect } from "react";
 import { apiService } from "@/service/ApiService";
-import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
 
 type Project = {
   name: string;
@@ -33,6 +32,110 @@ interface ApiPostRaw {
 
 interface ApiResponse {
   data: ApiPostRaw[];
+}
+
+interface PublicTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  settings?: { framework?: string; thumbnail?: string };
+  owner_username?: string;
+  likes_count?: number;
+}
+
+const FW_GRADIENT: Record<string, string> = {
+  react:   "from-cyan-500/20 to-blue-500/10",
+  vue:     "from-green-500/20 to-emerald-500/10",
+  nextjs:  "from-gray-500/20 to-zinc-500/10",
+  vanilla: "from-yellow-500/20 to-amber-500/10",
+};
+
+function CommunityShowcase() {
+  const [templates, setTemplates] = useState<PublicTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiService.get<{ data: PublicTemplate[] }>("/projects/public?type=template&limit=6")
+      .then((res) => setTemplates(res.data || []))
+      .catch(() => setTemplates([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (!loading && templates.length === 0) return null;
+
+  return (
+    <section className="py-20 px-4">
+      <div className="container mx-auto max-w-6xl">
+        <div className="text-center mb-12">
+          <Badge className="mb-4 bg-violet-500/10 text-violet-400 border-violet-500/20">
+            <Bookmark className="w-3.5 h-3.5 mr-1.5" />
+            Plantillas de la comunidad
+          </Badge>
+          <h2 className="text-3xl md:text-4xl font-heading font-bold mb-3">
+            Empieza desde una base real
+          </h2>
+          <p className="text-muted-foreground max-w-xl mx-auto">
+            Proyectos publicados por la comunidad que puedes usar como punto de partida
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card animate-pulse">
+                <div className="h-32 rounded-t-xl bg-secondary" />
+                <div className="p-5 space-y-2">
+                  <div className="h-4 bg-secondary rounded w-2/3" />
+                  <div className="h-3 bg-secondary rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {templates.map((tpl) => {
+              const fw = tpl.settings?.framework ?? "vanilla";
+              const gradient = FW_GRADIENT[fw] ?? FW_GRADIENT.vanilla;
+              return (
+                <Card key={tpl.id} className="bg-card border-border hover:border-violet-500/40 transition-all group overflow-hidden">
+                  <div className={`h-32 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                    {tpl.settings?.thumbnail
+                      ? <img src={tpl.settings.thumbnail} alt={tpl.name} className="w-full h-full object-cover" />
+                      : <Bookmark className="w-10 h-10 opacity-20 text-violet-400" />
+                    }
+                  </div>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{tpl.name}</CardTitle>
+                    <CardDescription>
+                      {tpl.description || "Sin descripción"} · por {tpl.owner_username ?? "anónimo"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2" asChild>
+                      <Link to={`/editor?fork=${tpl.id}`}>
+                        Usar plantilla
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="text-center">
+          <Button variant="outline" size="lg" asChild>
+            <Link to="/community">
+              <Globe className="w-4 h-4 mr-2" />
+              Ver todas en comunidad
+              <ArrowRight className="ml-2 w-4 h-4" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 const Index = () => {
@@ -162,66 +265,8 @@ const Index = () => {
           </div>
         </section>
 
-        {/* Templates Section */}
-        <section className="py-20 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-16">
-              <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
-                ✨ Plantillas Destacadas
-              </Badge>
-              <h2 className="text-3xl md:text-5xl font-heading font-bold mb-4">
-                Comienza con una plantilla
-              </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Ahorra tiempo usando nuestras plantillas profesionales listas para usar
-              </p>
-            </div>
-
-            {(() => {
-              const entries = Object.entries(PROJECT_TEMPLATES) as [string, ProjectTemplate][];
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  {entries.map(([key, tpl], idx) => (
-                    <Card
-                      key={key}
-                      className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
-                      style={{ animationDelay: `${idx * 0.1}s` }}
-                    >
-                      <div className="h-32 overflow-hidden bg-[#0f0f14] rounded-t-lg">
-                        <img
-                          src={`/templates/${key}.svg`}
-                          alt={tpl.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{tpl.name}</CardTitle>
-                        <CardDescription>{tpl.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Button variant="outline" className="w-full" asChild>
-                          <Link to={`/editor?template=${key}`}>
-                            Usar plantilla
-                            <ArrowRight className="ml-2 w-4 h-4" />
-                          </Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              );
-            })()}
-
-            <div className="text-center">
-              <Button variant="outline" size="lg" asChild>
-                <Link to="/projects">
-                  Ver todas las plantillas
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </section>
+        {/* Community Showcase Section */}
+        <CommunityShowcase />
 
         {/* Features Section */}
         <section className="py-20 px-4 bg-secondary/20">

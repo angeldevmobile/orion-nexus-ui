@@ -1,9 +1,17 @@
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, FolderX, MoreHorizontal, ExternalLink } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Plus, Trash2, FolderX, MoreHorizontal, ExternalLink, Globe, Bookmark } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { apiService } from "@/service/ApiService";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 
 interface Project {
@@ -19,19 +27,6 @@ interface Project {
 
 interface ApiResponse {
   data: Project[];
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "ahora mismo";
-  if (mins < 60) return `hace ${mins} min`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `hace ${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return `hace ${days} día${days > 1 ? "s" : ""}`;
-  const months = Math.floor(days / 30);
-  return `hace ${months} mes${months > 1 ? "es" : ""}`;
 }
 
 function editedLabel(dateStr: string): string {
@@ -97,9 +92,10 @@ function ProjectMockup({ project }: { project: Project }) {
   );
 }
 
-function ProjectCard({ project, onDelete, onClick }: {
+function ProjectCard({ project, onDelete, onPublish, onClick }: {
   project: Project;
   onDelete: (id: string, name: string) => void;
+  onPublish: (project: Project) => void;
   onClick: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -124,7 +120,6 @@ function ProjectCard({ project, onDelete, onClick }: {
       {/* thumbnail */}
       <div className="relative w-full aspect-[16/10] overflow-hidden bg-[#0d0d12]">
         <ProjectMockup project={project} />
-        {/* hover overlay with open button */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg px-4 py-2 flex items-center gap-2 text-white text-sm font-medium">
             <ExternalLink className="w-4 h-4" />
@@ -135,7 +130,6 @@ function ProjectCard({ project, onDelete, onClick }: {
 
       {/* bottom strip */}
       <div className="flex items-center gap-3 px-4 py-3 bg-[#111116]">
-        {/* avatar */}
         <div className="flex-shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center text-xs font-bold text-white select-none">
           {avatar
             ? <img src={avatar} alt={username} className="w-full h-full object-cover" />
@@ -143,7 +137,6 @@ function ProjectCard({ project, onDelete, onClick }: {
           }
         </div>
 
-        {/* name + date */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white truncate leading-tight">{project.name}</p>
           <p className="text-xs text-white/40 leading-tight mt-0.5">{editedLabel(project.updated_at)}</p>
@@ -158,7 +151,15 @@ function ProjectCard({ project, onDelete, onClick }: {
             <MoreHorizontal className="w-4 h-4" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 bottom-9 w-40 rounded-lg border border-white/10 bg-[#1e1e28] shadow-xl z-50 overflow-hidden">
+            <div className="absolute right-0 bottom-9 w-48 rounded-lg border border-white/10 bg-[#1e1e28] shadow-xl z-50 overflow-hidden">
+              <button
+                className="w-full px-3 py-2 text-sm text-left text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
+                onClick={() => { setMenuOpen(false); onPublish(project); }}
+              >
+                <Globe className="w-3.5 h-3.5 text-violet-400" />
+                Publicar proyecto
+              </button>
+              <div className="border-t border-white/8" />
               <button
                 className="w-full px-3 py-2 text-sm text-left text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
                 onClick={() => { setMenuOpen(false); onDelete(project.id, project.name); }}
@@ -177,8 +178,12 @@ function ProjectCard({ project, onDelete, onClick }: {
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [publishProject, setPublishProject] = useState<Project | null>(null);
+  const [publishing, setPublishing] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const fetchProjects = () => {
     setLoading(true);
@@ -200,8 +205,25 @@ export default function Projects() {
     }
   };
 
+  const handlePublish = async (type: "template" | "community") => {
+    if (!publishProject) return;
+    setPublishing(true);
+    try {
+      await apiService.post(`/projects/${publishProject.id}/publish`, { type });
+      toast({
+        title: type === "template" ? "Publicado como plantilla" : "Publicado en comunidad",
+        description: `"${publishProject.name}" ya está disponible ${type === "template" ? "como plantilla" : "en la comunidad"}.`,
+      });
+      setPublishProject(null);
+    } catch {
+      toast({ title: "Error", description: "No se pudo publicar el proyecto.", variant: "destructive" });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   return (
-    <div className="h-screen bg-[#0d0d10] flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden">
       <IconSidebar />
 
       <main className="flex-1 overflow-y-auto px-8 pt-10 pb-8">
@@ -256,6 +278,7 @@ export default function Projects() {
                   key={project.id}
                   project={project}
                   onDelete={handleDelete}
+                  onPublish={setPublishProject}
                   onClick={() => navigate(`/editor?project=${project.id}`)}
                 />
               ))}
@@ -263,6 +286,54 @@ export default function Projects() {
           )}
         </div>
       </main>
+
+      {/* Publish dialog */}
+      <Dialog open={!!publishProject} onOpenChange={(open) => { if (!open) setPublishProject(null); }}>
+        <DialogContent className="max-w-sm bg-[#1a1a1f] border border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Publicar proyecto</DialogTitle>
+            <DialogDescription className="text-white/50">
+              Elige cómo quieres compartir <span className="text-white/80 font-medium">"{publishProject?.name}"</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className={`grid gap-3 pt-2 ${isAdmin ? "grid-cols-2" : "grid-cols-1"}`}>
+            {isAdmin && (
+              <button
+                disabled={publishing}
+                onClick={() => handlePublish("template")}
+                className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-violet-500/50 transition-all p-5 disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-full bg-violet-500/15 flex items-center justify-center">
+                  <Bookmark className="w-5 h-5 text-violet-400" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-white">Plantilla</p>
+                  <p className="text-xs text-white/40 mt-0.5 leading-relaxed">Otros usuarios pueden usar tu proyecto como base</p>
+                </div>
+              </button>
+            )}
+
+            <button
+              disabled={publishing}
+              onClick={() => handlePublish("community")}
+              className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-blue-500/50 transition-all p-5 disabled:opacity-50"
+            >
+              <div className="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center">
+                <Globe className="w-5 h-5 text-blue-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-white">Comunidad</p>
+                <p className="text-xs text-white/40 mt-0.5 leading-relaxed">Comparte tu proyecto con la comunidad de Orion</p>
+              </div>
+            </button>
+          </div>
+
+          {publishing && (
+            <p className="text-center text-xs text-white/40 pt-1">Publicando...</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

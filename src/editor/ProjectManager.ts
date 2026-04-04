@@ -14,29 +14,29 @@ export class ProjectManager {
     const log = onLog || console.log;
 
     try {
-      log(`🎯 Creando proyecto con template: ${templateId}`);
+      log(`Creando proyecto con template: ${templateId}`);
       
       const template = getTemplate(templateId);
       if (!template) {
         throw new Error(`Template '${templateId}' no encontrado`);
       }
 
-      log("🧹 Limpiando workspace...");
+      log("Limpiando workspace...");
       await this.clearWorkspace();
 
-      log(`📁 Creando archivos para: ${template.name}`);
+      log(`Creando archivos para: ${template.name}`);
       const files = await template.createProject();
       
       await this.writeFilesToFs(files, log);
 
-      log("🚀 Ejecutando proyecto...");
+      log("Ejecutando proyecto...");
       const serverUrl = await runProject(log);
 
-      log(`✅ Proyecto '${template.name}' creado y ejecutándose`);
+      log(`Proyecto '${template.name}' creado y ejecutándose`);
       return serverUrl;
 
     } catch (error) {
-      log(`❌ Error creando proyecto: ${error}`);
+      log(`Error creando proyecto: ${error}`);
       throw error;
     }
   }
@@ -56,17 +56,17 @@ export class ProjectManager {
         throw new Error(`Template '${templateId}' no encontrado`);
       }
 
-      log("🧹 Limpiando workspace...");
+      log("Limpiando workspace...");
       await this.clearWorkspace();
 
-      log(`📁 Cargando template: ${template.name}`);
+      log(`Cargando template: ${template.name}`);
       const files = await template.createProject();
       
       await this.writeFilesToFs(files, log);
       
-      log(`✅ Template '${template.name}' cargado`);
+      log(`Template '${template.name}' cargado`);
     } catch (error) {
-      log(`❌ Error cargando template: ${error}`);
+      log(`Error cargando template: ${error}`);
       throw error;
     }
   }
@@ -86,14 +86,14 @@ export class ProjectManager {
     log: (message: string) => void
   ): Promise<void> {
     const fileCount = Object.keys(files).length;
-    log(`📝 Escribiendo ${fileCount} archivos...`);
+    log(`Escribiendo ${fileCount} archivos...`);
 
     for (const [path, content] of Object.entries(files)) {
       try {
         await fileManager.writeFile(path, content);
-        log(`   ✓ ${path}`);
+        log(`${path}`);
       } catch (error) {
-        log(`   ❌ Error escribiendo ${path}: ${error}`);
+        log(`Error escribiendo ${path}: ${error}`);
         throw error;
       }
     }

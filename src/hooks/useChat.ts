@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { aiService, ChatMessage, UIComponentData, EnrichedPayload } from '@/service/AiService';
 import { fileManager } from '@/editor/FileManager';
 import { initWebContainer, installDependencies, runDevServer, updateFilesInContainer, installPackage } from '@/editor/runtime/orionContainer';
+import { findComponentsByPrompt } from '@/data/componentsLibrary';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -89,6 +90,8 @@ async function writeFilesToVirtualFS(files: { path: string; content: string }[])
     if (dir && dir !== '/') await fileManager.createFolder(dir).catch(() => {});
     await fileManager.writeFile(p, file.content).catch(console.error);
   }
+  // Mark that the virtual FS was freshly populated in this browser session
+  sessionStorage.setItem('orion:fs:fresh', 'true');
 }
 
 // ── Default config files injected when AI doesn't generate them ──────────────
@@ -299,7 +302,29 @@ export const useChat = create<ChatStore>((set, get) => ({
       timestamp: m.timestamp.toISOString(),
     }));
 
-    const context = fileContext ? { fileContext } : undefined;
+    // ── Component library injection ──────────────────────────────────────────
+    // If the user mentions a library component by name/tag, pre-write it to the
+    // virtual FS and inject its code as additional context so the AI uses it.
+    const matchedComponents = findComponentsByPrompt(prompt);
+    let componentContext = '';
+    if (matchedComponents.length > 0) {
+      for (const comp of matchedComponents) {
+        const path = `/src/components/${comp.fileName}`;
+        const dir = path.split('/').slice(0, -1).join('/');
+        if (dir && dir !== '/') await fileManager.createFolder(dir).catch(() => {});
+        await fileManager.writeFile(path, comp.code).catch(() => {});
+      }
+      sessionStorage.setItem('orion:fs:fresh', 'true');
+      componentContext = `\n\n[Componentes de la biblioteca ya disponibles en el proyecto]\n${matchedComponents
+        .map(c => `// ${c.fileName}\n${c.code}`)
+        .join('\n\n')}`;
+    }
+
+    const context = fileContext
+      ? { fileContext: fileContext + componentContext }
+      : componentContext
+        ? { fileContext: componentContext }
+        : undefined;
     let fullResponse = ''; // only accumulates conversational text (not JSON)
     let enrichedData: EnrichedPayload | null = null;
 

@@ -117,7 +117,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         });
       });
 
-      console.log('📂 Archivos creados:', newFiles);
+      console.log('Archivos creados:', newFiles);
     }
 
     window.addEventListener('files-created', handleFilesCreated as EventListener);

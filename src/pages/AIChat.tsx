@@ -20,9 +20,12 @@ import {
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useChat, Message, WcStatus } from "@/hooks/useChat";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { apiService } from "@/service/ApiService";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { dumpFsToJson } from "@/editor/fileSystem/lightningFsAdapter";
@@ -259,8 +262,37 @@ export default function AIChat() {
   } = useChat();
 
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const handlePublish = async (type: "template" | "community") => {
+    setPublishing(true);
+    try {
+      const snapshot = await import("@/editor/fileSystem/lightningFsAdapter")
+        .then(m => m.dumpFsToJson()).catch(() => ({}));
+      const name = `Proyecto ${new Date().toLocaleDateString("es")}`;
+      const res = await apiService.post<{ data: { id: string } }>("/projects", {
+        name,
+        description: "",
+        isPublic: type === "community",
+        settings: { framework: "vanilla", language: "javascript" },
+        files: snapshot,
+      });
+      await apiService.post(`/projects/${res.data.id}/publish`, { type });
+      toast({
+        title: type === "template" ? "Publicado como plantilla" : "Publicado en comunidad",
+        description: `Tu proyecto ya está disponible ${type === "template" ? "como plantilla" : "en la comunidad"}.`,
+      });
+      setPublishOpen(false);
+    } catch {
+      toast({ title: "Error", description: "No se pudo publicar el proyecto.", variant: "destructive" });
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -347,6 +379,7 @@ export default function AIChat() {
 
 
   return (
+    <>
     <div className="h-screen bg-background flex overflow-hidden">
 
       <IconSidebar />
@@ -538,7 +571,8 @@ export default function AIChat() {
             </Button>
             <Button
               size="sm"
-              onClick={() => navigate('/projects')}
+              onClick={() => setPublishOpen(true)}
+              disabled={!generatedCode}
               className="text-xs h-7 bg-primary hover:bg-primary/90"
             >
               <Upload className="w-3 h-3 mr-1" />
@@ -684,5 +718,55 @@ export default function AIChat() {
       </div>
 
     </div>
+
+    {/* Publish dialog */}
+
+    <Dialog open={publishOpen} onOpenChange={(v) => { if (!v) setPublishOpen(false); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Publicar proyecto</DialogTitle>
+          <DialogDescription>
+            Elige cómo quieres compartir tu proyecto generado
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className={`grid gap-3 pt-2 ${isAdmin ? "grid-cols-2" : "grid-cols-1"}`}>
+          {isAdmin && (
+            <button
+              disabled={publishing}
+              onClick={() => handlePublish("template")}
+              className="flex flex-col items-center gap-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/60 hover:border-violet-500/50 transition-all p-5 disabled:opacity-50"
+            >
+              <div className="w-10 h-10 rounded-full bg-violet-500/15 flex items-center justify-center">
+                <Upload className="w-5 h-5 text-violet-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium">Plantilla</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Otros usuarios pueden usarlo como base</p>
+              </div>
+            </button>
+          )}
+
+          <button
+            disabled={publishing}
+            onClick={() => handlePublish("community")}
+            className="flex flex-col items-center gap-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/60 hover:border-blue-500/50 transition-all p-5 disabled:opacity-50"
+          >
+            <div className="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-blue-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium">Comunidad</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Comparte tu proyecto con la comunidad</p>
+            </div>
+          </button>
+        </div>
+
+        {publishing && (
+          <p className="text-center text-xs text-muted-foreground pt-1">Publicando...</p>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

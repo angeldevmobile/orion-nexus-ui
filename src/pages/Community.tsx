@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, MessageSquare, Trophy, Star, Search, ThumbsUp, Eye, Plus, ExternalLink, Globe, Loader2, Send, ChevronRight, Medal } from "lucide-react";
+import { Users, MessageSquare, Trophy, Star, Search, ThumbsUp, Eye, Plus, ExternalLink, Globe, Loader2, Send, ChevronRight, Medal, Bookmark, ArrowRight } from "lucide-react";
 import { AddProjectModal } from "@/components/AddProjectModal";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiService } from "@/service/ApiService";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +81,22 @@ interface Discussion {
 
 interface DiscussionsResponse {
   data: Discussion[];
+}
+
+interface PublicTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  settings?: { framework?: string; language?: string; thumbnail?: string };
+  owner_username?: string;
+  owner_avatar?: string;
+  likes_count?: number;
+  type: "template" | "community";
+}
+
+interface PublicTemplatesResponse {
+  data: PublicTemplate[];
 }
 
 function mapPost(raw: ApiPostRaw): CommunityPost {
@@ -319,6 +336,7 @@ function ProjectViewModal({
 export default function Community() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
   const [projects, setProjects] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -331,6 +349,13 @@ export default function Community() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const leaderboardFetched = useRef(false);
+
+  // Templates state
+  const [templates, setTemplates] = useState<PublicTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const templatesFetched = useRef(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const templateSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Discussions state
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
@@ -367,6 +392,24 @@ export default function Community() {
       .finally(() => setLoadingLeaderboard(false));
   }, []);
 
+  const fetchTemplates = useCallback((q?: string) => {
+    setLoadingTemplates(true);
+    const base = `/projects/public?type=template`;
+    const endpoint = q ? `${base}&search=${encodeURIComponent(q)}` : base;
+    apiService.get<PublicTemplatesResponse>(endpoint)
+      .then((res) => setTemplates(res.data || []))
+      .catch(() => {/* silent */})
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  const handleTemplateSearchChange = (value: string) => {
+    setTemplateSearch(value);
+    if (templateSearchTimer.current) clearTimeout(templateSearchTimer.current);
+    templateSearchTimer.current = setTimeout(() => {
+      fetchTemplates(value.trim() || undefined);
+    }, 400);
+  };
+
   const fetchDiscussions = useCallback((q?: string) => {
     setLoadingDiscussions(true);
     const endpoint = q
@@ -379,6 +422,10 @@ export default function Community() {
   }, []);
 
   const handleTabChange = (tab: string) => {
+    if (tab === 'templates' && !templatesFetched.current) {
+      templatesFetched.current = true;
+      fetchTemplates();
+    }
     if (tab === 'leaderboard' && !leaderboardFetched.current) {
       leaderboardFetched.current = true;
       fetchLeaderboard();
@@ -495,10 +542,14 @@ export default function Community() {
             </div>
 
             <Tabs defaultValue="projects" className="space-y-6" onValueChange={handleTabChange}>
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="projects" className="gap-2">
-                  <Star className="w-4 h-4" />
-                  Proyectos Destacados
+                  <Globe className="w-4 h-4" />
+                  Comunidad
+                </TabsTrigger>
+                <TabsTrigger value="templates" className="gap-2">
+                  <Bookmark className="w-4 h-4" />
+                  Plantillas
                 </TabsTrigger>
                 <TabsTrigger value="leaderboard" className="gap-2">
                   <Trophy className="w-4 h-4" />
@@ -592,6 +643,91 @@ export default function Community() {
                         </CardContent>
                       </Card>
                     ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Templates */}
+              <TabsContent value="templates" className="space-y-6">
+                <div className="flex gap-4 mb-6">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar plantillas..."
+                      className="pl-10 bg-card border-border"
+                      value={templateSearch}
+                      onChange={(e) => handleTemplateSearchChange(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {loadingTemplates ? (
+                  <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Cargando plantillas...
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="text-center py-20 text-muted-foreground">
+                    <Bookmark className="w-14 h-14 opacity-20 mx-auto mb-3" />
+                    <p className="text-lg font-medium">
+                      {templateSearch ? `Sin resultados para "${templateSearch}"` : "No hay plantillas aún"}
+                    </p>
+                    <p className="text-sm mt-1">
+                      {templateSearch ? "Intenta con otro término" : "Publica tu proyecto como plantilla desde Mis Proyectos"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {templates.map((tpl) => {
+                      const fw = tpl.settings?.framework ?? "vanilla";
+                      const fwColors: Record<string, string> = {
+                        react: "from-cyan-500/20 to-blue-500/10",
+                        vue: "from-green-500/20 to-emerald-500/10",
+                        nextjs: "from-gray-500/20 to-zinc-500/10",
+                        vanilla: "from-yellow-500/20 to-amber-500/10",
+                      };
+                      const gradient = fwColors[fw] ?? fwColors.vanilla;
+                      return (
+                        <Card key={tpl.id} className="bg-card border-border hover:border-violet-500/50 transition-all group overflow-hidden">
+                          <div className={`h-36 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
+                            {tpl.settings?.thumbnail ? (
+                              <img src={tpl.settings.thumbnail} alt={tpl.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <>
+                                <Bookmark className="w-10 h-10 opacity-30 text-violet-400" />
+                                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{fw}</span>
+                              </>
+                            )}
+                          </div>
+
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-base">{tpl.name}</CardTitle>
+                            <CardDescription>
+                              {tpl.description || "Sin descripción"} · por {tpl.owner_username ?? "anónimo"}
+                            </CardDescription>
+                          </CardHeader>
+
+                          <CardContent>
+                            <div className="flex items-center justify-between pt-2 border-t border-border">
+                              {tpl.likes_count !== undefined && (
+                                <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <ThumbsUp className="w-3.5 h-3.5" />
+                                  {tpl.likes_count}
+                                </span>
+                              )}
+                              <Button
+                                size="sm"
+                                className="ml-auto bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
+                                onClick={() => navigate(`/editor?fork=${tpl.id}`)}
+                              >
+                                Usar plantilla
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>

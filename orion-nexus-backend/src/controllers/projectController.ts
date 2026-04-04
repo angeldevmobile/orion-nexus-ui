@@ -63,6 +63,46 @@ export const createProject = asyncHandler(async (req: Request, res: Response) =>
   res.status(HTTP_STATUS.CREATED).json(response);
 });
 
+// Obtener proyectos públicos (plantillas y proyectos públicos)
+export const getPublicProjects = asyncHandler(async (req: Request, res: Response) => {
+  const { limit = 20 } = req.query;
+
+  const projectsQuery = `
+    SELECT
+      p.*,
+      u.username as owner_username,
+      u.email as owner_email,
+      u.avatar as owner_avatar
+    FROM projects p
+    LEFT JOIN users u ON p.owner_id = u.id
+    WHERE p.is_public = true
+    ORDER BY p.created_at DESC
+    LIMIT $1
+  `;
+
+  const result = await pool.query(projectsQuery, [Number(limit)]);
+
+  const projects = result.rows.map(row => ({
+    ...row,
+    files: JSON.parse(row.files || '[]'),
+    settings: JSON.parse(row.settings || '{}'),
+    owner: {
+      id: row.owner_id,
+      username: row.owner_username,
+      email: row.owner_email,
+      avatar: row.owner_avatar
+    }
+  }));
+
+  const response: ApiResponse = {
+    success: true,
+    message: 'Public projects retrieved successfully',
+    data: projects
+  };
+
+  res.status(HTTP_STATUS.OK).json(response);
+});
+
 // Obtener proyectos con paginación
 export const getProjects = asyncHandler(async (req: Request, res: Response) => {
   const { page = 1, limit = 10, sort = 'created_at', order = 'desc' }: PaginationQuery = req.query;

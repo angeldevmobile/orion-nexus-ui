@@ -107,11 +107,8 @@ export async function dumpFsToJson(): Promise<Record<string, string>> {
 // Inicialización básica - sin crear archivos automáticamente
 export async function initFsStructure() {
   try {
-    console.log("✅ Filesystem inicializado (sin archivos por defecto)");
+    console.log("Filesystem inicializado (sin archivos por defecto)");
   } catch (error) {
-    console.error("❌ Error inicializando filesystem:", error);
+    console.error("Error inicializando filesystem:", error);
   }
 }
-
-// NO ejecutar inicialización automática
-// initFsStructure();

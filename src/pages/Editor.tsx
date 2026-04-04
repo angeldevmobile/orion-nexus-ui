@@ -4,22 +4,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
 	Code2,
 	Save,
 	Download,
 	Settings2,
 	FileCode,
-	Layout,
-	Plus,
 	Sparkles,
 	Trash2,
 	FolderOpen,
 } from "lucide-react";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import FileExplorer from "@/editor/FileExplorer";
 import {
 	Dialog,
@@ -43,8 +40,6 @@ import {
 	runDevServer,
 	updateFilesInContainer,
 } from "@/editor/runtime/orionContainer";
-import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
-import { authService } from "@/service/AuthService";
 import { apiService } from "@/service/ApiService";
 import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
@@ -62,18 +57,11 @@ export default function Editor() {
 	const [tree, setTree] = useState<FileNode[]>([]);
 	const [hasProject, setHasProject] = useState<boolean | null>(null); // null = loading
 	const [consoleLines, setConsoleLines] = useState<string[]>([]);
-	const [searchParams] = useSearchParams();
-	const templateParam = searchParams.get("template");
-
-	const [selectedTemplate, setSelectedTemplate] =
-		useState<string>(templateParam && PROJECT_TEMPLATES[templateParam] ? templateParam : "react-vite");
-	const [creating, setCreating] = useState(false);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [serverUrl, setServerUrl] = useState<string | null>(null);
 	const [isRunning, setIsRunning] = useState(false);
 	const [activeTab, setActiveTab] = useState("code");
 	const { toast } = useToast();
-	const location = useLocation();
 	const navigate = useNavigate();
 	const { user, token } = useAuth();
 	const { autoFixError, uiData } = useChat();
@@ -122,11 +110,19 @@ export default function Editor() {
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [user?.id, token]);
 
-	// On mount: check if a project already exists in the virtual FS
+	// On mount: check if a project already exists in the virtual FS.
+	// If the FS has files but no fresh session flag, clear stale files from a previous session.
 	useEffect(() => {
 		(async () => {
 			try {
 				const entries = await fileManager.listDir("/");
+				const isFresh = sessionStorage.getItem('orion:fs:fresh') === 'true';
+				if (entries.length > 0 && !isFresh) {
+					// Stale files from a previous session — clear them
+					await fileManager.clearDirectory("/").catch(() => {});
+					setHasProject(false);
+					return;
+				}
 				setHasProject(entries.length > 0);
 				if (entries.length > 0) {
 					const allPaths = await getAllFilePaths("/");
@@ -211,72 +207,9 @@ export default function Editor() {
 		return toArray(root);
 	};
 
-	const handleCreateProject = async () => {
-		setCreating(true);
-		setConsoleLines(["📦 Creando proyecto..."]);
-		try {
-			await fileManager.clearDirectory("/");
-			const template = PROJECT_TEMPLATES[selectedTemplate];
-			if (!template)
-				throw new Error(`Template ${selectedTemplate} no encontrado`);
-
-			setConsoleLines((l) => [
-				...l,
-				`${(template as ProjectTemplate).icon} Usando template: ${
-					(template as ProjectTemplate).name
-				}`,
-			]);
-			const projectFiles = await (template as ProjectTemplate).createProject();
-
-			for (const [path, content] of Object.entries(projectFiles)) {
-				await fileManager.writeFile(path, content);
-				setConsoleLines((l) => [...l, `✅ ${path}`]);
-			}
-
-			await reloadTree();
-			const firstFile = "/src/App.tsx";
-			setLocalActiveFile(firstFile);
-			setProjectActiveFile(firstFile);
-			const content = await fileManager.readFile(firstFile);
-			setEditedContent(content);
-
-			setHasProject(true);
-			toast({
-				title: "Proyecto creado",
-				description: `${(template as ProjectTemplate).name} listo`,
-			});
-
-			// Guardar en base de datos (silencioso si no hay sesión activa)
-			const TEMPLATE_SETTINGS: Record<string, { framework: string; language: string }> = {
-				"react-vite":   { framework: "react",   language: "typescript" },
-				"react-nextjs": { framework: "react",   language: "typescript" },
-				"vanilla-html": { framework: "vanilla", language: "javascript" },
-			};
-			const settings = TEMPLATE_SETTINGS[selectedTemplate] ?? { framework: "vanilla", language: "javascript" };
-			apiService
-				.post("/projects", {
-					name: (template as ProjectTemplate).name,
-					description: "",
-					isPublic: false,
-					settings,
-				})
-				.catch(() => {
-					/* No autenticado o error de red — el proyecto existe localmente */
-				});
-		} catch (error) {
-			setConsoleLines((l) => [...l, `❌ Error: ${error}`]);
-			toast({
-				title: "Error",
-				description: String(error),
-				variant: "destructive",
-			});
-		} finally {
-			setCreating(false);
-		}
-	};
-
 	const handleNewProject = async () => {
 		await fileManager.clearDirectory("/");
+		sessionStorage.removeItem('orion:fs:fresh');
 		setTree([]);
 		setEditedContent("");
 		setLocalActiveFile("");
@@ -365,13 +298,9 @@ export default function Editor() {
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [localActiveFile, editedContent, serverUrl]);
 
-	// Auto-run whenever a project becomes available (template link or existing project)
+	// Auto-run when an existing project is loaded
 	useEffect(() => {
-		if (hasProject === false && templateParam && PROJECT_TEMPLATES[templateParam]) {
-			// Came from "Usar plantilla" — create then run
-			handleCreateProject().then(() => handleRun());
-		} else if (hasProject === true && !serverUrl) {
-			// Existing project loaded — auto-run
+		if (hasProject === true && !serverUrl) {
 			handleRun();
 		}
 	// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -455,38 +384,7 @@ export default function Editor() {
 						</button>
 					</div>
 
-					{/* New project from template */}
-					<Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-						<SelectTrigger className="w-full h-8 text-xs bg-background">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{Object.entries(PROJECT_TEMPLATES).map(([key, tpl]) => (
-								<SelectItem key={key} value={key} className="text-xs">
-									{(tpl as ProjectTemplate).icon} {(tpl as ProjectTemplate).name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<Button
-						size="sm"
-						variant="outline"
-						className="w-full h-7 text-xs"
-						onClick={handleCreateProject}
-						disabled={creating}>
-						{creating ? (
-							<>
-								<div className="w-3 h-3 rounded-full border-2 border-muted-foreground/40 border-t-foreground animate-spin mr-1.5" />
-								Creando...
-							</>
-						) : (
-							<>
-								<Layout className="w-3 h-3 mr-1.5" />
-								Nuevo Proyecto
-							</>
-						)}
-					</Button>
-				</div>
+					</div>
 
 				<div className="flex-1 overflow-y-auto p-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
 					<FileExplorer

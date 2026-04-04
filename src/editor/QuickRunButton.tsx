@@ -19,7 +19,7 @@ export const QuickRunButton: React.FC = () => {
       const url = await runProject(onLog);
       setServerUrl(url);
     } catch (error) {
-      onLog(`❌ Error: ${error}`);
+      onLog(`Error: ${error}`);
     } finally {
       setIsRunning(false);
     }
@@ -32,7 +32,7 @@ export const QuickRunButton: React.FC = () => {
         disabled={isRunning}
         className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded transition-colors font-semibold"
       >
-        {isRunning ? "⏳ Ejecutando..." : "🚀 Ejecutar Proyecto"}
+        {isRunning ? "Ejecutando..." : "Ejecutar Proyecto"}
       </button>
 
       {logs.length > 0 && (
@@ -47,7 +47,7 @@ export const QuickRunButton: React.FC = () => {
 
       {serverUrl && (
         <div className="mt-3 p-3 bg-green-900 rounded">
-          <p className="text-green-400 text-sm mb-1">✅ Servidor activo:</p>
+          <p className="text-green-400 text-sm mb-1">Servidor activo:</p>
           <a
             href={serverUrl}
             target="_blank"

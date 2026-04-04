@@ -4,7 +4,7 @@ import { cleanAnsiCodes } from '@/editor/cleanAnsi';
 let webcontainer: WebContainer | null = null;
 
 export async function initWebContainer(fsSnapshot: Record<string, string>) {
-  console.log("🚀 Inicializando WebContainer...");
+  console.log("Inicializando WebContainer...");
 
   try {
     if (!webcontainer) {
@@ -15,9 +15,9 @@ export async function initWebContainer(fsSnapshot: Record<string, string>) {
       await writeFileToContainer(path, content);
     }
 
-    console.log("📦 Archivos cargados en WebContainer");
+    console.log("Archivos cargados en WebContainer");
   } catch (error) {
-    console.error("❌ Error inicializando WebContainer:", error);
+    console.error("Error inicializando WebContainer:", error);
     throw error;
   }
 }
@@ -46,8 +46,8 @@ export async function installDependencies(onLog: (msg: string) => void): Promise
   }
 
   try {
-    onLog("📦 Iniciando instalación de dependencias...");
-    onLog("⏳ Esto puede tardar varios minutos...");
+    onLog("Iniciando instalación de dependencias...");
+    onLog("Esto puede tardar varios minutos...");
     
     const installProcess = await webcontainer.spawn("npm", ["install"], {
       env: { NODE_ENV: "development" }
@@ -76,15 +76,15 @@ export async function installDependencies(onLog: (msg: string) => void): Promise
         if (trimmed.length > 2 && !isSpinner) {
           // Detectar progreso de instalación
           if (trimmed.includes('added') || trimmed.includes('packages')) {
-            onLog(`📦 ${trimmed}`);
+            onLog(`${trimmed}`);
             const match = trimmed.match(/(\d+) packages/);
             if (match) packageCount = parseInt(match[1]);
           }
           else if (trimmed.includes('vulnerabilities')) {
-            onLog(`🔒 ${trimmed}`);
+            onLog(`${trimmed}`);
           }
           else if (trimmed.includes('npm WARN')) {
-            onLog(`⚠️ ${trimmed.replace('npm WARN', '').trim()}`);
+            onLog(`${trimmed.replace('npm WARN', '').trim()}`);
           }
           else if (!trimmed.match(/^[.\s]*$/)) {
             // Solo mostrar si tiene contenido real (corregido)
@@ -103,12 +103,12 @@ export async function installDependencies(onLog: (msg: string) => void): Promise
     }
     
     if (packageCount > 0) {
-      onLog(`✅ ${packageCount} paquetes instalados correctamente`);
+      onLog(`${packageCount} paquetes instalados correctamente`);
     } else {
-      onLog("✅ Dependencias instaladas correctamente");
+      onLog("Dependencias instaladas correctamente");
     }
   } catch (error) {
-    onLog(`❌ Error instalando dependencias: ${error}`);
+    onLog(`Error instalando dependencias: ${error}`);
     throw error;
   }
 }
@@ -118,7 +118,7 @@ export async function installPackage(
   onLog: (msg: string) => void
 ): Promise<void> {
   if (!webcontainer) throw new Error('WebContainer no inicializado');
-  onLog(`📦 Instalando ${packageName}...`);
+  onLog(`Instalando ${packageName}...`);
   const proc = await webcontainer.spawn('npm', ['install', packageName]);
   const reader = proc.output.getReader();
   try {
@@ -133,7 +133,7 @@ export async function installPackage(
   }
   const code = await proc.exit;
   if (code !== 0) throw new Error(`npm install ${packageName} falló (código ${code})`);
-  onLog(`✅ ${packageName} instalado`);
+  onLog(`${packageName} instalado`);
 }
 
 export async function runDevServer(
@@ -145,7 +145,7 @@ export async function runDevServer(
   }
 
   try {
-    onLog("🚀 Iniciando servidor de desarrollo...");
+    onLog("Iniciando servidor de desarrollo...");
 
     const serverProcess = await webcontainer.spawn("npm", ["run", "dev"], {
       env: {
@@ -171,7 +171,7 @@ export async function runDevServer(
         if (trimmed.length > 2 && !trimmed.match(/^[\s\-|/\\]+$/)) {
           if (trimmed.includes('ready') || trimmed.includes('compiled') ||
               trimmed.includes('Local:') || trimmed.includes('localhost')) {
-            onLog(`✅ ${trimmed}`);
+            onLog(`${trimmed}`);
           } else {
             onLog(trimmed);
           }
@@ -203,7 +203,7 @@ export async function runDevServer(
 
       webcontainer!.on("server-ready", (port, url) => {
         clearTimeout(timeout);
-        onLog(`🌍 Servidor listo en: ${url}`);
+        onLog(`Servidor listo en: ${url}`);
         resolve(url);
       });
 
@@ -215,7 +215,7 @@ export async function runDevServer(
       });
     });
   } catch (error) {
-    onLog(`❌ Error iniciando servidor: ${error}`);
+    onLog(`Error iniciando servidor: ${error}`);
     throw error;
   }
 }

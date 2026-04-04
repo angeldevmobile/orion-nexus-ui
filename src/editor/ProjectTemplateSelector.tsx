@@ -21,7 +21,7 @@ export const ProjectTemplateSelector: React.FC = () => {
       const url = await ProjectManager.createAndRunProject(templateId, onLog);
       setServerUrl(url);
     } catch (error) {
-      onLog(`❌ Error: ${error}`);
+      onLog(`Error: ${error}`);
     } finally {
       setIsLoading(false);
     }
@@ -30,7 +30,7 @@ export const ProjectTemplateSelector: React.FC = () => {
   return (
     <div className="p-6 bg-gray-800 rounded-lg">
       <h2 className="text-2xl font-bold text-white mb-6">
-        🚀 Crear Nuevo Proyecto
+        Crear Nuevo Proyecto
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

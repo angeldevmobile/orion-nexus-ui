@@ -6,7 +6,6 @@ export class FileManager {
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    // ✅ Validar que content sea string
     if (typeof content !== 'string') {
       console.warn(`Invalid content type for ${path}, converting to string`);
       content = String(content || '');
@@ -28,7 +27,6 @@ export class FileManager {
 
   // Detectar archivos binarios por extensión o contenido
   private isBinaryContent(content: string, path: string): boolean {
-    // ✅ Validación de seguridad
     if (!content || typeof content !== 'string') {
       return false;
     }
@@ -62,7 +60,7 @@ export class FileManager {
       
       // Escribir como binario
       await (fs.writeFile as (path: string, data: Uint8Array | string, encoding?: string) => Promise<void>)(path, bytes);
-      console.log(`✅ Binary file written: ${path}`);
+      console.log(`Binary file written: ${path}`);
     } catch (error) {
       console.error(`Error escribiendo archivo binario ${path}:`, error);
       throw error;
@@ -80,7 +78,7 @@ export class FileManager {
       current += `/${part}`;
       try {
         await fs.mkdir(current);
-        console.log(`✅ Folder created: ${current}`);
+        console.log(`Folder created: ${current}`);
       } catch {
         // Ignore — already exists
       }
