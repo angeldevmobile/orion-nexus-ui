@@ -572,7 +572,7 @@ export default function AIChat() {
                         <iframe
                           srcDoc={previewHtml}
                           title="Vista Previa — HTML"
-                          sandbox="allow-scripts allow-same-origin"
+                          sandbox="allow-scripts"
                           style={iframeStyle}
                         />
                       )}

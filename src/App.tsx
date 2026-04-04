@@ -16,6 +16,7 @@ import Pricing from "./pages/Pricing";
 import Community from "./pages/Community";
 import History from "./pages/History";
 import Help from "./pages/Help";
+import ArticleDetail from "./pages/ArticleDetail";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
@@ -28,7 +29,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
 	const location = useLocation();
-	const hideHeader = ["/auth", "/auth/callback", "/ai-chat", "/editor", "/projects", "/dashboard", "/components", "/settings", "/pricing", "/community", "/history", "/help", "/admin"].includes(location.pathname);
+	const hideHeader = ["/auth", "/auth/callback", "/ai-chat", "/editor", "/projects", "/dashboard", "/components", "/settings", "/pricing", "/community", "/history", "/help", "/admin"].includes(location.pathname) || location.pathname.startsWith("/help/articles/");
 	return (
 		<>
 			{!hideHeader && <Header />}
@@ -125,6 +126,7 @@ const AppContent = () => {
 						</AdminRoute>
 					}
 				/>
+				<Route path="/help/articles/:slug" element={<ArticleDetail />} />
 				<Route path="*" element={<NotFound />} />
 			</Routes>
 		</>

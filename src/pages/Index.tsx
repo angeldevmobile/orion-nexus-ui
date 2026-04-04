@@ -9,6 +9,7 @@ import { UploadProjectModal } from "@/components/UploadProjectModal";
 import { ViewProjectModal } from "@/components/ViewProjectModal";
 import { useState, useEffect } from "react";
 import { apiService } from "@/service/ApiService";
+import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
 
 type Project = {
   name: string;
@@ -176,68 +177,40 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {[
-                {
-                  name: "Dashboard Empresarial",
-                  description: "Panel de control con gráficas y analytics",
-                  color: "from-blue-500/20 to-cyan-500/20",
-                  icon: "📊"
-                },
-                {
-                  name: "App de E-commerce",
-                  description: "Tienda online con carrito y pagos",
-                  color: "from-purple-500/20 to-pink-500/20",
-                  icon: "🛍️"
-                },
-                {
-                  name: "Landing Page SaaS",
-                  description: "Página de aterrizaje moderna y responsiva",
-                  color: "from-green-500/20 to-emerald-500/20",
-                  icon: "🚀"
-                },
-                {
-                  name: "Portfolio Personal",
-                  description: "Muestra tu trabajo de forma profesional",
-                  color: "from-orange-500/20 to-red-500/20",
-                  icon: "💼"
-                },
-                {
-                  name: "Blog Moderno",
-                  description: "Sistema de blog con CMS integrado",
-                  color: "from-indigo-500/20 to-blue-500/20",
-                  icon: "📝"
-                },
-                {
-                  name: "App de Tareas",
-                  description: "Gestión de proyectos y productividad",
-                  color: "from-yellow-500/20 to-orange-500/20",
-                  icon: "✅"
-                },
-              ].map((template, idx) => (
-                <Card 
-                  key={template.name}
-                  className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
-                  style={{ animationDelay: `${idx * 0.1}s` }}
-                >
-                  <div className={`h-32 bg-gradient-to-br ${template.color} flex items-center justify-center text-5xl group-hover:scale-110 transition-transform`}>
-                    {template.icon}
-                  </div>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{template.name}</CardTitle>
-                    <CardDescription>{template.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link to="/ai-chat">
-                        Usar plantilla
-                        <ArrowRight className="ml-2 w-4 h-4" />
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {(() => {
+              const entries = Object.entries(PROJECT_TEMPLATES) as [string, ProjectTemplate][];
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {entries.map(([key, tpl], idx) => (
+                    <Card
+                      key={key}
+                      className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
+                      style={{ animationDelay: `${idx * 0.1}s` }}
+                    >
+                      <div className="h-32 overflow-hidden bg-[#0f0f14] rounded-t-lg">
+                        <img
+                          src={`/templates/${key}.svg`}
+                          alt={tpl.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                      <CardHeader>
+                        <CardTitle className="text-lg">{tpl.name}</CardTitle>
+                        <CardDescription>{tpl.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button variant="outline" className="w-full" asChild>
+                          <Link to={`/editor?template=${key}`}>
+                            Usar plantilla
+                            <ArrowRight className="ml-2 w-4 h-4" />
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
 
             <div className="text-center">
               <Button variant="outline" size="lg" asChild>

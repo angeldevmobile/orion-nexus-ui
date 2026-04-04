@@ -2,9 +2,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
 	Code2,
-	Play,
 	Save,
 	Download,
 	Settings2,
@@ -17,7 +19,7 @@ import {
 } from "lucide-react";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import FileExplorer from "@/editor/FileExplorer";
 import {
 	Dialog,
@@ -39,11 +41,13 @@ import {
 	initWebContainer,
 	installDependencies,
 	runDevServer,
+	updateFilesInContainer,
 } from "@/editor/runtime/orionContainer";
 import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/editor/templates";
 import { authService } from "@/service/AuthService";
 import { apiService } from "@/service/ApiService";
 import { useAuth } from "@/hooks/useAuth";
+import { useChat } from "@/hooks/useChat";
 
 export default function Editor() {
 	const {
@@ -58,14 +62,21 @@ export default function Editor() {
 	const [tree, setTree] = useState<FileNode[]>([]);
 	const [hasProject, setHasProject] = useState<boolean | null>(null); // null = loading
 	const [consoleLines, setConsoleLines] = useState<string[]>([]);
+	const [searchParams] = useSearchParams();
+	const templateParam = searchParams.get("template");
+
 	const [selectedTemplate, setSelectedTemplate] =
-		useState<string>("react-vite");
+		useState<string>(templateParam && PROJECT_TEMPLATES[templateParam] ? templateParam : "react-vite");
 	const [creating, setCreating] = useState(false);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const [serverUrl, setServerUrl] = useState<string | null>(null);
+	const [isRunning, setIsRunning] = useState(false);
+	const [activeTab, setActiveTab] = useState("code");
 	const { toast } = useToast();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const { user } = useAuth();
+	const { user, token } = useAuth();
+	const { autoFixError, uiData } = useChat();
 	const prefs = user?.preferences as Record<string, unknown> | undefined;
 	const editorFontFamily = prefs?.editorFont
 		? String(prefs.editorFont)
@@ -78,6 +89,38 @@ export default function Editor() {
 		: "VS Code Dark";
 	const editorAutocomplete =
 		prefs?.autocomplete !== undefined ? Boolean(prefs.autocomplete) : true;
+
+	// ── Presence ─────────────────────────────────────────────────────────────────
+	interface PresenceUser { user_id: number; username: string; email: string; avatar?: string; color: string }
+	const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
+	// Derive a stable project slug from the first file path
+	const presenceProjectId = useRef<string>(`editor-${user?.id ?? "anon"}`);
+
+	useEffect(() => {
+		if (!user || !token) return;
+		const projectId = presenceProjectId.current;
+		const headers: Record<string, string> = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
+
+		const sendHeartbeat = () => {
+			fetch(`http://localhost:5000/api/team/presence/${projectId}`, {
+				method: "POST",
+				headers,
+			}).catch(() => {/* silent */});
+		};
+
+		const fetchPresence = () => {
+			fetch(`http://localhost:5000/api/team/presence/${projectId}`, { headers })
+				.then((r) => r.json())
+				.then((d) => { if (d.success) setPresenceUsers(d.data || []); })
+				.catch(() => {/* silent */});
+		};
+
+		sendHeartbeat();
+		fetchPresence();
+		const interval = setInterval(() => { sendHeartbeat(); fetchPresence(); }, 10_000);
+		return () => clearInterval(interval);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [user?.id, token]);
 
 	// On mount: check if a project already exists in the virtual FS
 	useEffect(() => {
@@ -204,11 +247,18 @@ export default function Editor() {
 			});
 
 			// Guardar en base de datos (silencioso si no hay sesión activa)
+			const TEMPLATE_SETTINGS: Record<string, { framework: string; language: string }> = {
+				"react-vite":   { framework: "react",   language: "typescript" },
+				"react-nextjs": { framework: "react",   language: "typescript" },
+				"vanilla-html": { framework: "vanilla", language: "javascript" },
+			};
+			const settings = TEMPLATE_SETTINGS[selectedTemplate] ?? { framework: "vanilla", language: "javascript" };
 			apiService
 				.post("/projects", {
 					name: (template as ProjectTemplate).name,
 					description: "",
 					isPublic: false,
+					settings,
 				})
 				.catch(() => {
 					/* No autenticado o error de red — el proyecto existe localmente */
@@ -245,6 +295,10 @@ export default function Editor() {
 		await fileManager.writeFile(localActiveFile, editedContent);
 		toast({ title: "Guardado", description: `${localActiveFile} guardado.` });
 		await reloadTree();
+		// Push al WebContainer para HMR (si el servidor ya está corriendo)
+		if (serverUrl && localActiveFile) {
+			updateFilesInContainer({ [localActiveFile]: editedContent }).catch(() => {});
+		}
 	};
 
 	const handleCreateFile = async (name: string) => {
@@ -258,18 +312,70 @@ export default function Editor() {
 	};
 
 	const handleRun = async () => {
+		if (isRunning) return;
+		setIsRunning(true);
 		setConsoleLines([]);
-		const snapshot = await dumpFsToJson();
-		await initWebContainer(snapshot);
-		await installDependencies((log) => setConsoleLines((l) => [...l, log]));
-		await runDevServer((log) => {
-			setConsoleLines((l) => [...l, log]);
-			if (log.startsWith("🌍 Servidor listo en ")) {
-				const url = log.split("en ")[1];
-				if (iframeRef.current) iframeRef.current.src = url;
-			}
-		});
+		setActiveTab("console");
+		try {
+			const snapshot = await dumpFsToJson();
+			await initWebContainer(snapshot);
+			await installDependencies((log) => setConsoleLines((l) => [...l, log]));
+			const url = await runDevServer(
+				(log) => setConsoleLines((l) => [...l, log]),
+				// Auto-fix Vite errors via AI
+				async (error) => {
+					setConsoleLines((l) => [...l, `⚠️ Error detectado — corrigiendo con IA...`]);
+					await autoFixError(
+						`Corrige este error de Vite:\n\`\`\`\n${error}\n\`\`\`\n\nEl archivo activo es: ${localActiveFile}`
+					);
+					// Push corrected files from AI back into the container
+					const fixed = uiData?.files ?? [];
+					if (fixed.length > 0) {
+						const patch: Record<string, string> = {};
+						for (const f of fixed) {
+							const p = f.path.startsWith('/') ? f.path : `/${f.path}`;
+							patch[p] = f.content;
+							await fileManager.writeFile(p, f.content).catch(() => {});
+						}
+						await updateFilesInContainer(patch);
+						setConsoleLines((l) => [...l, `✅ ${fixed.length} archivos corregidos — Vite HMR aplicando cambios`]);
+					}
+				}
+			);
+			setServerUrl(url);
+			if (iframeRef.current) iframeRef.current.src = url;
+			setActiveTab("preview");
+		} catch (err) {
+			setConsoleLines((l) => [...l, `❌ Error: ${err}`]);
+		} finally {
+			setIsRunning(false);
+		}
 	};
+
+	// Ctrl+S → guardar
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+				e.preventDefault();
+				if (localActiveFile) handleSave();
+			}
+		};
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [localActiveFile, editedContent, serverUrl]);
+
+	// Auto-run whenever a project becomes available (template link or existing project)
+	useEffect(() => {
+		if (hasProject === false && templateParam && PROJECT_TEMPLATES[templateParam]) {
+			// Came from "Usar plantilla" — create then run
+			handleCreateProject().then(() => handleRun());
+		} else if (hasProject === true && !serverUrl) {
+			// Existing project loaded — auto-run
+			handleRun();
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [hasProject]);
 
 	// ── Loading state ────────────────────────────────────────────────────────────
 	if (hasProject === null) {
@@ -350,16 +456,18 @@ export default function Editor() {
 					</div>
 
 					{/* New project from template */}
-					<select
-						value={selectedTemplate}
-						onChange={(e) => setSelectedTemplate(e.target.value)}
-						className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded-lg">
-						{Object.entries(PROJECT_TEMPLATES).map(([key, tpl]) => (
-							<option key={key} value={key}>
-								{(tpl as ProjectTemplate).icon} {(tpl as ProjectTemplate).name}
-							</option>
-						))}
-					</select>
+					<Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+						<SelectTrigger className="w-full h-8 text-xs bg-background">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{Object.entries(PROJECT_TEMPLATES).map(([key, tpl]) => (
+								<SelectItem key={key} value={key} className="text-xs">
+									{(tpl as ProjectTemplate).icon} {(tpl as ProjectTemplate).name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Button
 						size="sm"
 						variant="outline"
@@ -403,6 +511,51 @@ export default function Editor() {
 							</Badge>
 						)}
 					</div>
+
+					{/* ── Presence avatars ── */}
+					{presenceUsers.length > 0 && (
+						<div className="flex items-center gap-1.5 mr-2">
+							<span className="text-xs text-muted-foreground mr-1">Editando:</span>
+							<TooltipProvider delayDuration={150}>
+								<div className="flex -space-x-2">
+									{presenceUsers.slice(0, 6).map((pu) => (
+										<Tooltip key={pu.user_id}>
+											<TooltipTrigger asChild>
+												<div
+													className="relative w-7 h-7 rounded-full border-2 cursor-default"
+													style={{ borderColor: pu.color }}
+												>
+													<Avatar className="w-full h-full">
+														<AvatarImage src={pu.avatar} />
+														<AvatarFallback
+															className="text-[10px] font-bold"
+															style={{ background: pu.color + "33", color: pu.color }}
+														>
+															{(pu.username ?? pu.email ?? "?").slice(0, 2).toUpperCase()}
+														</AvatarFallback>
+													</Avatar>
+													{/* live pulse dot */}
+													<span
+														className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card animate-pulse"
+														style={{ background: pu.color }}
+													/>
+												</div>
+											</TooltipTrigger>
+											<TooltipContent side="bottom" className="text-xs px-2 py-1">
+												{pu.username ?? pu.email}
+												<span className="ml-1 opacity-60 capitalize">({pu.user_id === parseInt(String(user?.id ?? "0")) ? "tú" : "editor"})</span>
+											</TooltipContent>
+										</Tooltip>
+									))}
+									{presenceUsers.length > 6 && (
+										<div className="w-7 h-7 rounded-full border-2 border-border bg-secondary flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+											+{presenceUsers.length - 6}
+										</div>
+									)}
+								</div>
+							</TooltipProvider>
+						</div>
+					)}
 
 					<div className="flex items-center gap-2">
 						<Dialog open={configOpen} onOpenChange={setConfigOpen}>
@@ -512,18 +665,24 @@ export default function Editor() {
 							<Save className="w-3.5 h-3.5 mr-1.5" />
 							Guardar
 						</Button>
-						<Button
-							size="sm"
-							className="h-7 text-xs bg-primary hover:bg-primary/90"
-							onClick={handleRun}>
-							<Play className="w-3.5 h-3.5 mr-1.5" />
-							Ejecutar
-						</Button>
+					{/* Estado del servidor — solo lectura */}
+					{isRunning && (
+						<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+							Iniciando...
+						</div>
+					)}
+					{serverUrl && !isRunning && (
+						<div className="flex items-center gap-1.5 text-xs text-green-500">
+							<div className="w-2 h-2 rounded-full bg-green-500" />
+							Servidor activo
+						</div>
+					)}
 					</div>
 				</div>
 
 				{/* Tabs */}
-				<Tabs defaultValue="code" className="flex-1 flex flex-col min-h-0">
+				<Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
 					<div className="flex-shrink-0 border-b border-border bg-card px-4">
 						<TabsList className="h-9">
 							<TabsTrigger value="code" className="text-xs">

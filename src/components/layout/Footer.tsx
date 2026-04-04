@@ -15,7 +15,7 @@ const footerSections = [
   },
   {
     title: "Resources",
-    links: ["Learn", "Guides", "Videos", "Blog", "Support", "Documentation"],
+    links: ["Learn", "Guides", "Blog", "Support", "Documentation", "API Reference"],
   },
   {
     title: "Community",

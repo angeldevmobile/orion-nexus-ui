@@ -30,6 +30,8 @@ import componentRoutes from './routes/components';
 import communityRoutes from './routes/community';
 import paymentRoutes from './routes/payment';
 import adminRoutes from './routes/admin';
+import docsRoutes from './routes/docs';
+import teamRoutes from './routes/team';
 
 const app = express();
 const server = createServer(app);
@@ -116,6 +118,8 @@ app.use('/api/components', componentRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/docs', docsRoutes);
+app.use('/api/team', teamRoutes);
 
 // Health check with more details
 app.get('/api/health', (req, res) => {

@@ -41,11 +41,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     headers: {
-      // unsafe-none allows third-party iframes like Stripe to load without CORP conflicts.
-      // same-origin-allow-popups keeps tab isolation but allows Stripe 3D Secure popups.
-      // Note: SharedArrayBuffer is unavailable without require-corp/credentialless + same-origin.
-      'Cross-Origin-Embedder-Policy': 'unsafe-none',
-      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      // Required by WebContainer (SharedArrayBuffer needs crossOriginIsolated = true)
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
     },
     fs: {
       allow: ['..']

@@ -706,7 +706,7 @@ REGLAS IMPORTANTES:
       esmImports.push(`import { ${[...rechartsItems].join(', ')} } from 'recharts';`);
     }
 
-    // any other external package
+    // any other external package (named imports + optional default)
     for (const [pkg, names] of externalNamed) {
       if (pkg === 'lucide-react' || pkg === 'recharts') continue;
       if (SKIP_PKGS.has(pkg)) continue;
@@ -714,6 +714,14 @@ REGLAS IMPORTANTES:
       const namedPart = names.size > 0 ? `{ ${[...names].join(', ')} }` : '';
       const parts = [defImport, namedPart].filter(Boolean).join(', ');
       if (parts) esmImports.push(`import ${parts} from '${pkg}';`);
+    }
+
+    // packages that are ONLY default-imported (not present in externalNamed at all)
+    for (const [pkg, defName] of externalDefault) {
+      if (SKIP_PKGS.has(pkg) || pkg === 'lucide-react' || pkg === 'recharts') continue;
+      if (!externalNamed.has(pkg)) {
+        esmImports.push(`import ${defName} from '${pkg}';`);
+      }
     }
 
     // ── Bundle each file: strip ALL imports (we re-added them above), strip exports ──

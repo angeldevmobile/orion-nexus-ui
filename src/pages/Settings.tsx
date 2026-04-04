@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Settings as SettingsIcon, User, Bell, Shield, Code2, Palette, Globe, Download, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Settings as SettingsIcon, User, Bell, Shield, Code2, Palette, Globe, Download, Loader2, Users, Mail, Trash2, Crown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -56,6 +58,71 @@ export default function Settings() {
 
   // Integrations
   const [disconnectingGithub, setDisconnectingGithub] = useState(false);
+
+  // ── Team / Workspace ──
+  interface TeamMember { id: number; user_id: number; username: string; email: string; avatar?: string; role: string; status: string }
+  interface PendingInvite { id: number; invitee_email: string; role: string; status: string; created_at: string }
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("editor");
+  const [inviting, setInviting] = useState(false);
+  const [loadingTeam, setLoadingTeam] = useState(false);
+
+  const loadTeam = async () => {
+    setLoadingTeam(true);
+    try {
+      const res = await fetch(`${API_BASE}/team/members`, { headers: authHeaders });
+      const data = await res.json();
+      if (data.success) {
+        setTeamMembers(data.data.members || []);
+        setPendingInvites(data.data.pending || []);
+      }
+    } catch { /* fail-open */ } finally { setLoadingTeam(false); }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const res = await fetch(`${API_BASE}/team/invite`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error al enviar invitación");
+      toast({ title: "Invitación enviada", description: `Se envió una invitación a ${inviteEmail}` });
+      setInviteEmail("");
+      loadTeam();
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
+    } finally { setInviting(false); }
+  };
+
+  const handleCancelInvite = async (inviteId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/team/invites/${inviteId}`, { method: "DELETE", headers: authHeaders });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error");
+      toast({ title: "Invitación cancelada" });
+      loadTeam();
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/team/members/${userId}`, { method: "DELETE", headers: authHeaders });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error");
+      toast({ title: "Miembro eliminado del workspace" });
+      loadTeam();
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
+    }
+  };
 
   // Load user data on mount
   useEffect(() => {
@@ -292,7 +359,7 @@ export default function Settings() {
             </div>
 
             <Tabs defaultValue="profile" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="profile" className="gap-2">
                   <User className="w-4 h-4" />
                   Perfil
@@ -316,6 +383,10 @@ export default function Settings() {
                 <TabsTrigger value="integrations" className="gap-2">
                   <Globe className="w-4 h-4" />
                   Integraciones
+                </TabsTrigger>
+                <TabsTrigger value="team" className="gap-2" onClick={loadTeam}>
+                  <Users className="w-4 h-4" />
+                  Equipo
                 </TabsTrigger>
               </TabsList>
 
@@ -394,16 +465,16 @@ export default function Settings() {
                     <div className="grid gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="font">Fuente del editor</Label>
-                        <select
-                          id="font"
-                          value={editorFont}
-                          onChange={(e) => setEditorFont(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-background border border-border"
-                        >
-                          <option>Fira Code</option>
-                          <option>JetBrains Mono</option>
-                          <option>Courier New</option>
-                        </select>
+                        <Select value={editorFont} onValueChange={setEditorFont}>
+                          <SelectTrigger id="font" className="bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Fira Code">Fira Code</SelectItem>
+                            <SelectItem value="JetBrains Mono">JetBrains Mono</SelectItem>
+                            <SelectItem value="Courier New">Courier New</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="fontsize">Tamaño de fuente</Label>
@@ -417,16 +488,16 @@ export default function Settings() {
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="theme">Tema del editor</Label>
-                        <select
-                          id="theme"
-                          value={editorTheme}
-                          onChange={(e) => setEditorTheme(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-background border border-border"
-                        >
-                          <option>VS Code Dark</option>
-                          <option>Monokai</option>
-                          <option>Dracula</option>
-                        </select>
+                        <Select value={editorTheme} onValueChange={setEditorTheme}>
+                          <SelectTrigger id="theme" className="bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="VS Code Dark">VS Code Dark</SelectItem>
+                            <SelectItem value="Monokai">Monokai</SelectItem>
+                            <SelectItem value="Dracula">Dracula</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
@@ -780,6 +851,169 @@ export default function Settings() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* ── Team Tab ── */}
+              <TabsContent value="team">
+                {/* Plan gate banner */}
+                {user?.role === "free" && (
+                  <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3">
+                    <Crown className="w-5 h-5 text-primary shrink-0" />
+                    <p className="text-sm">
+                      La colaboración en equipo está disponible en los planes{" "}
+                      <span className="font-semibold text-primary">Pro</span> y{" "}
+                      <span className="font-semibold text-primary">Enterprise</span>.{" "}
+                      <a href="/pricing" className="underline hover:no-underline">Actualiza tu plan</a>
+                    </p>
+                  </div>
+                )}
+
+                {/* Invite form */}
+                <Card className="bg-card border-border mb-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Mail className="w-5 h-5 text-primary" />
+                      Invitar miembro
+                    </CardTitle>
+                    <CardDescription>
+                      Invita a tu workspace desde aquí. Los colaboradores podrán ver y editar proyectos compartidos en tiempo real.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-3">
+                      <Input
+                        placeholder="correo@ejemplo.com"
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        className="bg-background flex-1"
+                        onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                      />
+                      <Select value={inviteRole} onValueChange={setInviteRole}>
+                        <SelectTrigger className="bg-background w-32 shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="viewer">Lector</SelectItem>
+                          <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        className="bg-primary hover:bg-primary/90 shrink-0"
+                        onClick={handleInvite}
+                        disabled={inviting || !inviteEmail.trim()}
+                      >
+                        {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Invitar"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      El usuario recibirá una invitación para unirse a tu workspace.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Members list */}
+                <Card className="bg-card border-border mb-4">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-primary" />
+                      Miembros del workspace
+                      {teamMembers.length > 0 && (
+                        <Badge variant="secondary" className="ml-auto">{teamMembers.length}</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingTeam ? (
+                      <div className="flex items-center gap-2 text-muted-foreground py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Cargando...</span>
+                      </div>
+                    ) : teamMembers.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm">Aún no hay miembros en tu workspace.</p>
+                        <p className="text-xs mt-1">Invita a alguien usando el formulario de arriba.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Owner row */}
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30">
+                          <Avatar className="w-9 h-9">
+                            <AvatarImage src={user?.avatar} />
+                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                              {user?.username?.slice(0, 2).toUpperCase() ?? "TÚ"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{user?.username ?? user?.email}</p>
+                            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                          </div>
+                          <Badge className="bg-primary/20 text-primary text-xs border-primary/30">Propietario</Badge>
+                        </div>
+                        {teamMembers.map((m) => (
+                          <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/20 border border-border">
+                            <Avatar className="w-9 h-9">
+                              <AvatarImage src={m.avatar} />
+                              <AvatarFallback className="bg-secondary text-foreground text-xs">
+                                {m.username?.slice(0, 2).toUpperCase() ?? "??"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{m.username}</p>
+                              <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                            </div>
+                            <Badge variant="secondary" className="text-xs capitalize">{m.role}</Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                              onClick={() => handleRemoveMember(m.user_id)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Pending invites */}
+                {pendingInvites.length > 0 && (
+                  <Card className="bg-card border-border">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-muted-foreground" />
+                        Invitaciones pendientes
+                        <Badge variant="outline" className="ml-auto text-xs">{pendingInvites.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {pendingInvites.map((inv) => (
+                        <div key={inv.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/20 border border-dashed border-border">
+                          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
+                            <Mail className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{inv.invitee_email}</p>
+                            <p className="text-xs text-muted-foreground">Pendiente · {inv.role}</p>
+                          </div>
+                          <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/40">Pendiente</Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleCancelInvite(inv.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
             </Tabs>
           </div>
         </main>
@@ -787,3 +1021,4 @@ export default function Settings() {
     </div>
   );
 }
+
