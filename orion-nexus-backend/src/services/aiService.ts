@@ -762,11 +762,14 @@ REGLAS IMPORTANTES:
     const bundledCode = bundledParts.join('\n\n');
 
     // Find root component name
+    // Prefer App.tsx; fall back to the last source file (deepest in dependency order)
     const appFile = sorted.find(f => f.path.includes('App.tsx') || f.path.includes('App.jsx'));
-    const appCode = appFile ? this.stripTypescript(appFile.content) : '';
-    const fnMatch = appCode.match(/(?:export\s+default\s+)?function\s+([A-Z][A-Za-z0-9_]*)\s*\(/);
-    const arrowMatch = appCode.match(/(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*=/);
-    const componentName = fnMatch?.[1] || arrowMatch?.[1] || 'App';
+    const primaryFile = appFile ?? sorted[sorted.length - 1];
+    const primaryCode = primaryFile ? this.stripTypescript(primaryFile.content) : '';
+    const fnMatch = primaryCode.match(/(?:export\s+default\s+)?function\s+([A-Z][A-Za-z0-9_]*)\s*\(/);
+    const defaultExport = primaryCode.match(/export\s+default\s+([A-Z][A-Za-z0-9_]*)/);
+    const arrowMatch = primaryCode.match(/(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*=/);
+    const componentName = defaultExport?.[1] || fnMatch?.[1] || arrowMatch?.[1] || 'App';
 
     const renderCall = `
 try {
@@ -807,11 +810,23 @@ try {
   ${importMap}
   </script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    tailwind = { config: {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#8B5CF6',
+            accent: '#06B6D4',
+          }
+        }
+      }
+    }};
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; }
-    #root { min-height: 100vh; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; background: #0F0F1A; }
+    #root { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
     #__preview_error {
       display: none; padding: 16px; background: #1e1e2e; color: #f38ba8;
       font-family: monospace; font-size: 13px; white-space: pre-wrap;
@@ -849,38 +864,104 @@ ${renderCall}
 
   async generateReactComponent(prompt: string, context?: ChatContext): Promise<GeneratedComponentResult> {
     const enhancedPrompt = `
-Eres un asistente que genera interfaces React + TypeScript + Tailwind (estilo lovable.dev).
-DEVUELVE SOLO JSON válido con esta estructura EXACTA:
-{
-  "design": { "palette": { "primary": "#xxxxxx", "accent": "#xxxxxx", "bg": "#xxxxxx" }, "effects": [...], "layout": "texto", "fields": [...] },
-  "files": [{ "path": "src/components/Login.tsx", "content": "..." }, ...],
-  "previewHtml": "<!doctype html>... (HTML independiente listo para iframe) ...",
-  "meta": { "framework": "react+vite", "styleGuide": "lovable.dev", "animations": [...] }
-}
-REGLAS:
-- Responde **SOLO** con JSON (sin texto extra).
-- \`previewHtml\` debe ser un HTML completo que cargue Tailwind y React vía CDN para render directo en un iframe.
-- \`files\` deben ser listos para un proyecto React+Vite+TS.
+Eres un experto en UI/UX que genera componentes React + TypeScript + Tailwind CSS de calidad premium (estilo lovable.dev / shadcn/ui oscuro).
 
-Solicitud del usuario: ${prompt}
+DEVUELVE SOLO JSON válido con esta estructura EXACTA (sin texto extra, sin markdown):
+{
+  "design": {
+    "palette": { "primary": "#8B5CF6", "accent": "#06B6D4", "bg": "#0F0F1A" },
+    "effects": [...],
+    "layout": "texto"
+  },
+  "files": [
+    { "path": "src/components/NombreComponente.tsx", "content": "..." }
+  ],
+  "previewHtml": "",
+  "meta": {
+    "framework": "react+vite",
+    "styleGuide": "dark-premium",
+    "animations": [...]
+  }
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRIORIDAD DE GENERACIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Fidelidad visual al objeto solicitado
+2. Claridad de representación
+3. Estética premium (solo después de lo anterior)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGLAS DE DISEÑO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Estilo oscuro obligatorio (bg-[#0F0F1A], bg-zinc-950, bg-gray-950)
+- Diseño moderno tipo dashboard fintech / SaaS
+- Uso de glassmorphism, gradientes, sombras suaves
+- Bordes redondeados (rounded-xl o superior)
+- Espaciado limpio y jerarquía visual clara
+- Debe ser visualmente impresionante pero funcional
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGLAS DE REPRESENTACIÓN VISUAL (CRÍTICO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- El componente debe representar EXACTAMENTE el objeto solicitado
+- NO reinterpretar como tarjetas, botones o contenedores genéricos
+- Mantener la forma icónica real del objeto
+- Todo el contenido debe estar dentro de su estructura lógica
+
+Ejemplo:
+Si el usuario pide una batería:
+- Forma horizontal de batería real
+- Terminal positivo visible (rectángulo pequeño a la derecha)
+- Contorno claro de batería
+- Nivel de carga dentro del contenedor
+- Rayo (⚡) centrado dentro de la batería
+- NO parecer card, widget genérico o botón
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGLAS DE CÓDIGO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. FONDO OSCURO obligatorio
+2. SOLO colores reales Tailwind o hex inline
+   NO usar: border-primary, bg-accent, text-secondary
+   Usar: border-violet-500, bg-cyan-500, text-violet-300
+3. Animaciones:
+   - Tailwind (animate-pulse, animate-bounce)
+   - o @keyframes dentro de <style>
+4. SIN props externas (usar useState/useEffect con datos internos)
+5. SOLO UN archivo .tsx
+6. Export default al final
+7. previewHtml debe ser ""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CALIDAD ESPERADA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Animaciones fluidas (ease-in-out)
+- Detalles visuales cuidados
+- Microinteracciones (hover, glow, transitions)
+- Código limpio y listo para producción
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Solicitud del usuario:
+${prompt}
 `;
 
-    const raw = await this.generateCode({
-      prompt: enhancedPrompt,
-      language: 'typescript',
-      framework: 'react',
-      context,
-      returnJson: true
+    // Use Claude for component generation — better visual creativity and JSON discipline
+    const claudeResponse = await claude.messages.create({
+      model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      system: 'Eres un generador de componentes React+TypeScript+Tailwind. Respondes ÚNICAMENTE con JSON válido, sin texto extra ni markdown.',
+      messages: [{ role: 'user', content: enhancedPrompt }],
     });
 
+    const rawText = (claudeResponse.content[0] as { type: string; text: string })?.text || '';
+    if (!rawText) throw new Error('No content from Claude');
+
     // Buscar JSON en la respuesta (por seguridad)
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found in model response');
 
-    let jsonText = jsonMatch[0];
-    // Opcional: reparar comillas simples → dobles, eliminar trailing commas
-    jsonText = jsonText.replace(/(['`])?([a-zA-Z0-9_]+)\1\s*:/g, '"$2":');
-    jsonText = jsonText.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+    const jsonText = jsonMatch[0];
 
     let parsed: GeneratedComponentResult;
     try {
@@ -891,8 +972,18 @@ Solicitud del usuario: ${prompt}
     }
 
     // Validaciones básicas
-    if (!parsed.files || !Array.isArray(parsed.files) || typeof parsed.previewHtml !== 'string') {
+    if (!parsed.files || !Array.isArray(parsed.files)) {
       throw new Error('Generated object missing required fields');
+    }
+
+    // Override the AI-generated previewHtml (which often uses bare ES imports or
+    // unpkg UMD scripts that break under COEP) with our robust import-map + Babel
+    // based renderer that sources everything from esm.sh (CORP-compliant).
+    try {
+      const robustPreview = await this.generateLovablePreviewHTML(parsed.files);
+      if (robustPreview) parsed.previewHtml = robustPreview;
+    } catch {
+      // keep the AI-generated preview as fallback
     }
 
     return parsed;
@@ -1156,7 +1247,7 @@ El proyecto debe ser completamente funcional y listo para ejecutar con "npm inst
     }
   }
 
-  // 🆕 Proyecto básico de fallback
+  // Proyecto básico de fallback
   private generateBasicProject(
     prompt: string,
     framework: string

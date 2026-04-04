@@ -76,6 +76,10 @@ function CreateComponentModal({
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
   const [form, setForm] = useState({
     name: "",
     category: COMPONENT_CATEGORIES[0] as string,
@@ -86,6 +90,41 @@ function CreateComponentModal({
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [key]: e.target.value }));
+
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    setGenerating(true);
+    try {
+      const result = await aiService.generateComponent(aiPrompt.trim());
+
+      // Pick the best file: prefer a component file over App/main
+      const compFile =
+        result.files.find(f => !f.path.includes('App.tsx') && !f.path.includes('main.tsx') && f.path.endsWith('.tsx')) ||
+        result.files.find(f => f.path.endsWith('.tsx')) ||
+        result.files[0];
+
+      if (compFile) {
+        const inferredName = compFile.path.replace(/.*\//, '').replace(/\.tsx?$/, '');
+        setForm(prev => ({
+          ...prev,
+          code: compFile.content,
+          name: prev.name || inferredName,
+          description: prev.description || result.design?.layout || '',
+        }));
+      }
+
+      if (result.previewHtml) {
+        setPreviewHtml(result.previewHtml);
+        setShowPreview(true);
+      }
+
+      toast({ title: '✨ Componente generado', description: 'Puedes editar el código antes de guardar.' });
+    } catch {
+      toast({ title: 'Error de IA', description: 'No se pudo generar el componente.', variant: 'destructive' });
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.code.trim()) {
@@ -117,7 +156,10 @@ function CreateComponentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[#0e0e14] border border-white/10 rounded-2xl w-[95vw] max-w-3xl h-[90vh] flex flex-col shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
+      <div
+        className={`bg-[#0e0e14] border border-white/10 rounded-2xl w-[95vw] ${showPreview ? 'max-w-6xl' : 'max-w-3xl'} h-[90vh] flex flex-col shadow-2xl shadow-black/50 transition-all duration-300`}
+        onClick={e => e.stopPropagation()}
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 flex-shrink-0">
@@ -127,86 +169,150 @@ function CreateComponentModal({
             </div>
             <span className="text-base font-bold text-white">Nuevo componente</span>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {previewHtml && (
+              <button
+                onClick={() => setShowPreview(p => !p)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showPreview ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' : 'text-zinc-400 border-white/10 hover:bg-white/5 hover:text-white'}`}
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                {showPreview ? 'Ocultar preview' : 'Ver preview'}
+              </button>
+            )}
+            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Form */}
-        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-6 gap-5">
+        {/* Body: form (left) + optional preview (right) */}
+        <div className="flex flex-1 min-h-0">
 
-          {/* Nombre + Categoría */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Nombre <span className="text-violet-400">*</span></label>
-              <input value={form.name} onChange={set("name")} placeholder="Mi Componente" className={inputCls} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Categoría</label>
-              <div className="relative">
+          {/* Form */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 gap-5">
+
+            {/* AI Prompt Section */}
+            <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-4 h-4 text-violet-400" />
+                <span className="text-sm font-semibold text-violet-300">Generar con IA</span>
+                <span className="text-xs text-zinc-600 ml-auto">Describe el componente y la IA generará el código</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={aiPrompt}
+                  onChange={e => setAiPrompt(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !generating && handleGenerate()}
+                  placeholder='Ej: "Un card de estadísticas con gradiente violeta y animación de contador"'
+                  className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+                />
                 <button
-                  type="button"
-                  onClick={() => setCatOpen(o => !o)}
-                  className="w-full flex items-center justify-between bg-zinc-900 border border-white/10 rounded-xl px-3 py-2.5 text-sm transition-colors hover:border-violet-500/40 focus:outline-none"
+                  onClick={handleGenerate}
+                  disabled={generating || !aiPrompt.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-50 transition-colors whitespace-nowrap shadow-lg shadow-violet-500/20"
                 >
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${catColor}`}>
-                    {form.category}
-                  </span>
-                  <svg className={`w-4 h-4 text-zinc-500 transition-transform ${catOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  {generating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4" /> Generar</>
+                  )}
                 </button>
-                {catOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-                    {COMPONENT_CATEGORIES.map(c => {
-                      const cc = CAT_COLORS[c] ?? "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
-                      return (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => { setForm(p => ({ ...p, category: c })); setCatOpen(false); }}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors hover:bg-white/5 ${form.category === c ? 'bg-white/5' : ''}`}
-                        >
-                          <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${cc}`}>{c}</span>
-                          {form.category === c && <svg className="w-3.5 h-3.5 text-violet-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+              </div>
+            </div>
+
+            {/* Nombre + Categoría */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Nombre <span className="text-violet-400">*</span></label>
+                <input value={form.name} onChange={set("name")} placeholder="Mi Componente" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Categoría</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setCatOpen(o => !o)}
+                    className="w-full flex items-center justify-between bg-zinc-900 border border-white/10 rounded-xl px-3 py-2.5 text-sm transition-colors hover:border-violet-500/40 focus:outline-none"
+                  >
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${catColor}`}>
+                      {form.category}
+                    </span>
+                    <svg className={`w-4 h-4 text-zinc-500 transition-transform ${catOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {catOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                      {COMPONENT_CATEGORIES.map(c => {
+                        const cc = CAT_COLORS[c] ?? "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => { setForm(p => ({ ...p, category: c })); setCatOpen(false); }}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors hover:bg-white/5 ${form.category === c ? 'bg-white/5' : ''}`}
+                          >
+                            <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${cc}`}>{c}</span>
+                            {form.category === c && <svg className="w-3.5 h-3.5 text-violet-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Descripción */}
+            <div>
+              <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Descripción</label>
+              <input value={form.description} onChange={set("description")} placeholder="Breve descripción del componente" className={inputCls} />
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="text-xs font-medium text-zinc-400 mb-1.5 block">
+                Tags <span className="text-zinc-600">(separados por coma)</span>
+              </label>
+              <input value={form.tags} onChange={set("tags")} placeholder="button, animado, hover" className={inputCls} />
+            </div>
+
+            {/* Código con Monaco */}
+            <div className="flex-1 flex flex-col min-h-0">
+              <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Código <span className="text-violet-400">*</span></label>
+              <div className="flex-1 rounded-xl overflow-hidden border border-white/10 min-h-[260px]">
+                <MonacoEditor
+                  filePath={`/components/${form.name.replace(/\s+/g, '') || 'MyComponent'}.tsx`}
+                  code={form.code}
+                  onChange={v => setForm(p => ({ ...p, code: v }))}
+                  fontFamily="Fira Code"
+                  fontSize={13}
+                  editorTheme="VS Code Dark"
+                  autocomplete={true}
+                />
               </div>
             </div>
           </div>
 
-          {/* Descripción */}
-          <div>
-            <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Descripción</label>
-            <input value={form.description} onChange={set("description")} placeholder="Breve descripción del componente" className={inputCls} />
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="text-xs font-medium text-zinc-400 mb-1.5 block">
-              Tags <span className="text-zinc-600">(separados por coma)</span>
-            </label>
-            <input value={form.tags} onChange={set("tags")} placeholder="button, animado, hover" className={inputCls} />
-          </div>
-
-          {/* Código con Monaco */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <label className="text-xs font-medium text-zinc-400 mb-1.5 block">Código <span className="text-violet-400">*</span></label>
-            <div className="flex-1 rounded-xl overflow-hidden border border-white/10 min-h-[260px]">
-              <MonacoEditor
-                filePath={`/components/${form.name.replace(/\s+/g, '') || 'MyComponent'}.tsx`}
-                code={form.code}
-                onChange={v => setForm(p => ({ ...p, code: v }))}
-                fontFamily="Fira Code"
-                fontSize={13}
-                editorTheme="VS Code Dark"
-                autocomplete={true}
-              />
+          {/* Live Preview Panel */}
+          {showPreview && (
+            <div className="w-[48%] border-l border-white/10 flex flex-col flex-shrink-0">
+              <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2 flex-shrink-0">
+                <Monitor className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs font-semibold text-zinc-300">Vista previa en vivo</span>
+                <span className="ml-auto text-[10px] text-zinc-600">Renderizado por IA</span>
+              </div>
+              <div className="flex-1 min-h-0 bg-[#080810]">
+                <iframe
+                  srcDoc={previewHtml}
+                  sandbox="allow-scripts"
+                  title="AI Component Preview"
+                  className="w-full h-full border-0"
+                  {...({ credentialless: '' } as object)}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}

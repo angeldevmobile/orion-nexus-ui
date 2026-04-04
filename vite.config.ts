@@ -41,8 +41,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     headers: {
-      // Required by WebContainer (SharedArrayBuffer needs crossOriginIsolated = true)
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      // credentialless keeps crossOriginIsolated=true (SharedArrayBuffer/Monaco works)
+      // but allows CDN scripts in iframes without requiring CORP headers from each CDN.
+      'Cross-Origin-Embedder-Policy': 'credentialless',
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
     fs: {
