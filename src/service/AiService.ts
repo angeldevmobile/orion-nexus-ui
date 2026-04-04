@@ -150,6 +150,21 @@ class AIService {
     return data.code;
   }
 
+  async generateComponent(prompt: string): Promise<{
+    design: { palette: Record<string, string>; effects: string[]; layout: string };
+    files: { path: string; content: string }[];
+    previewHtml: string;
+    meta?: { framework?: string; animations?: string[]; styleGuide?: string };
+  }> {
+    const response = await fetch(`${BASE_URL}/ai/generate-component`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+
   async generateFullProject(prompt: string, framework = 'react') {
     const response = await fetch(`${BASE_URL}/ai/generate-full-project`, {
       method: 'POST',

@@ -55,6 +55,47 @@ async function migrate() {
     `);
     console.log('OK: editor_presence table created');
 
+    // Components library enhancements
+    await pool.query(`
+      ALTER TABLE components ADD COLUMN IF NOT EXISTS slug VARCHAR(255);
+    `);
+    console.log('OK: components.slug column added');
+
+    await pool.query(`
+      ALTER TABLE components ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
+    `);
+    console.log('OK: components.file_name column added');
+
+    await pool.query(`
+      ALTER TABLE components ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT false;
+    `);
+    console.log('OK: components.is_system column added');
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS components_slug_unique ON components(slug) WHERE slug IS NOT NULL;
+    `);
+    console.log('OK: components slug unique index created');
+
+    // Allow system components to have NULL creator_id
+    await pool.query(`
+      ALTER TABLE components ALTER COLUMN creator_id DROP NOT NULL;
+    `);
+    console.log('OK: components.creator_id made nullable');
+
+    // Expand category check to include new frontend categories
+    await pool.query(`
+      ALTER TABLE components DROP CONSTRAINT IF EXISTS components_category_check;
+    `);
+    await pool.query(`
+      ALTER TABLE components ADD CONSTRAINT components_category_check
+        CHECK (category = ANY(ARRAY[
+          'ui','layout','form','navigation','data','feedback','overlay','other',
+          'Buttons','Cards','Forms','Navigation','Layouts','UI Elements',
+          'Animations','Loaders','Data Display'
+        ]::text[]));
+    `);
+    console.log('OK: components.category constraint expanded');
+
     console.log('\nAll migrations completed successfully!');
   } catch (err) {
     console.error('Migration error:', err.message);

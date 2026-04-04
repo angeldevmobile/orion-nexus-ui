@@ -12,6 +12,9 @@ interface QueryParams {
 
 interface ComponentRow {
   id: number;
+  slug: string | null;
+  file_name: string | null;
+  is_system: boolean;
   name: string;
   description: string;
   category: string;
@@ -170,11 +173,14 @@ export const getComponents = asyncHandler(async (req: Request, res: Response) =>
 
   const components = componentsResult.rows.map((row: ComponentRow) => ({
     id: row.id,
+    slug: row.slug,
+    file_name: row.file_name,
+    is_system: row.is_system,
     name: row.name,
     description: row.description,
     category: row.category,
     code: row.code,
-    props: JSON.parse(row.props || '[]'),
+    props: Array.isArray(row.props) ? row.props : (typeof row.props === 'string' ? JSON.parse(row.props || '[]') : (row.props ?? [])),
     framework: row.framework,
     tags: row.tags,
     is_public: row.is_public,

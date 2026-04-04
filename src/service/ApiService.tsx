@@ -84,6 +84,36 @@ class ApiService {
       body: data ? JSON.stringify(data) : undefined,
     });
   }
+
+  // ── Component-specific helpers ────────────────────────────────────────────
+  async getComponents(params?: { category?: string; search?: string; page?: number; limit?: number }) {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set('category', params.category);
+    if (params?.search)   qs.set('search', params.search);
+    if (params?.page)     qs.set('page', String(params.page));
+    if (params?.limit)    qs.set('limit', String(params.limit));
+    const query = qs.toString() ? `?${qs}` : '';
+    return this.request<unknown>(`/components${query}`, { method: 'GET' });
+  }
+
+  async createComponent(data: {
+    name: string;
+    description?: string;
+    category: string;
+    code: string;
+    tags?: string[];
+    framework?: string;
+    props?: unknown[];
+  }) {
+    return this.request<unknown>('/components', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteComponent(id: number) {
+    return this.request<unknown>(`/components/${id}`, { method: 'DELETE' });
+  }
 }
 
 export const apiService = new ApiService(API_BASE_URL);

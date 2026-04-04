@@ -106,6 +106,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
       height="100%"
       language={detectLanguage(filePath)}
       value={code}
+      path={filePath}
       onChange={(v) => onChange(v || "")}
       theme={resolvedTheme}
       beforeMount={handleBeforeMount}

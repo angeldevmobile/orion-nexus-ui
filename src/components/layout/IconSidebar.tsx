@@ -39,66 +39,105 @@ export const IconSidebar = () => {
 
   return (
     <aside className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border bg-card">
-      <Link
-        to="/"
-        className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-5 hover:bg-primary/20 transition-colors"
-        title="Inicio"
-      >
-        <Rocket className="w-4 h-4 text-primary" />
-      </Link>
+      <div className="relative group mb-5">
+        <Link
+          to="/"
+          className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
+        >
+          <Rocket className="w-4 h-4 text-primary" />
+        </Link>
+        <div className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 z-50
+          opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap
+          bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
+          border border-white/10">
+          Inicio
+          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
+        </div>
+      </div>
 
       <nav className="flex flex-col gap-1 flex-1">
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
-          <Link
-            key={to}
-            to={to}
-            title={label}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-              location.pathname === to
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-          </Link>
+          <div key={to} className="relative group">
+            <Link
+              to={to}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                location.pathname === to
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+            </Link>
+            <div className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 z-50
+              opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap
+              bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
+              border border-white/10">
+              {label}
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
+            </div>
+          </div>
         ))}
 
         {/* Icono de admin — solo visible para role=admin */}
         {user?.role === "admin" && (
-          <Link
-            to="/admin"
-            title="Panel Admin"
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-              location.pathname === "/admin"
-                ? "bg-amber-500 text-white"
-                : "text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-          </Link>
+          <div className="relative group">
+            <Link
+              to="/admin"
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                location.pathname === "/admin"
+                  ? "bg-amber-500 text-white"
+                  : "text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+            </Link>
+            <div className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 z-50
+              opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap
+              bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
+              border border-white/10">
+              Panel Admin
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
+            </div>
+          </div>
         )}
       </nav>
 
-      <div
-        className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity mb-1"
-        title={user?.username ?? user?.email ?? "Usuario"}
-        onClick={() => navigate("/settings")}
-      >
-        {user?.avatar ? (
-          <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
-        ) : (
-          initials
-        )}
+      <div className="relative group mb-1">
+        <div
+          className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => navigate("/settings")}
+        >
+          {user?.avatar ? (
+            <img src={user.avatar} alt={initials} className="w-full h-full rounded-xl object-cover" />
+          ) : (
+            initials
+          )}
+        </div>
+        <div className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 z-50
+          opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap
+          bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
+          border border-white/10">
+          {user?.username ?? user?.email ?? "Usuario"}
+          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
+        </div>
       </div>
 
-      <Button
-        size="sm"
-        onClick={() => navigate("/projects")}
-        className="w-9 h-9 p-0 bg-primary hover:bg-primary/90"
-        title="Publicar"
-      >
-        <Upload className="w-4 h-4" />
-      </Button>
+      <div className="relative group">
+        <Button
+          size="sm"
+          onClick={() => navigate("/projects")}
+          className="w-9 h-9 p-0 bg-primary hover:bg-primary/90"
+        >
+          <Upload className="w-4 h-4" />
+        </Button>
+        <div className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 z-50
+          opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap
+          bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
+          border border-white/10">
+          Publicar
+          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
+        </div>
+      </div>
     </aside>
   );
 };
