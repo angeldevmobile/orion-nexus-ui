@@ -17,13 +17,13 @@ export interface ComponentRating {
 }
 
 export interface Component {
-  id: number; // SERIAL PRIMARY KEY en PostgreSQL
+  id: number;
   name: string;
   description?: string;
   category: 'ui' | 'layout' | 'form' | 'navigation' | 'data' | 'feedback' | 'overlay' | 'other';
   code: string;
   preview?: string;
-  props: ComponentProp[]; // JSONB en PostgreSQL
+  props: ComponentProp[]; 
   framework: 'react' | 'vue' | 'angular';
   creator_id: number; // Foreign key a users(id)
   is_public: boolean; // snake_case para PostgreSQL

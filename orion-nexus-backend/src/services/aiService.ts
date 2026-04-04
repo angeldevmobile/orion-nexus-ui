@@ -5,11 +5,6 @@ import { ChatMessage, ChatContext } from '../types/chatSession';
 import fs from 'fs/promises';
 import path from 'path';
 
-// ── npm version resolver ──────────────────────────────────────────────────────
-// Fetches the latest published version of each package from the npm registry.
-// Results are cached for 24 h so the server doesn't hit npm on every request.
-// If the registry is unreachable the fallback values below are used instead.
-
 const ESM_PACKAGES = [
   'react', 'react-dom', 'lucide-react', 'recharts',
   'clsx', 'tailwind-merge', 'class-variance-authority',
@@ -124,7 +119,7 @@ interface ClaudeMessage {
   content: string;
 }
 
-// 🆕 Agregar interface para el resultado de proyecto completo
+// Agregar interface para el resultado de proyecto completo
 interface FullProjectResult {
   files: Record<string, string>;
   meta: {
@@ -339,7 +334,6 @@ REGLAS IMPORTANTES:
         model: process.env.OPENAI_MODEL_MAIN || 'gpt-4o-mini',
         messages,
         max_completion_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || (returnJson ? '6000' : '4000')),
-        // 🔥 REMOVIDO: temperature
       });
 
       return completion.choices[0]?.message?.content || '// Error al generar código';
@@ -403,7 +397,6 @@ REGLAS IMPORTANTES:
         model: process.env.OPENAI_MODEL_MAIN || 'gpt-4-turbo-preview',
         messages,
         max_completion_tokens: 6000,
-        // 🔥 REMOVIDO: temperature
       });
 
       const response = completion.choices[0]?.message?.content;
@@ -660,7 +653,7 @@ REGLAS IMPORTANTES:
     // Sort so dependencies come before their consumers
     const sorted = this.sortFilesByDependency(sourceFiles);
 
-    // ── Collect all external (non-relative) imports from every file ────────────
+    // Collect all external (non-relative) imports from every file 
     // We re-emit them as real ESM imports at the top of the bundle so the
     // import map can resolve them to esm.sh URLs.
     const externalNamed = new Map<string, Set<string>>();   // pkg → named exports used
@@ -689,7 +682,7 @@ REGLAS IMPORTANTES:
       }
     }
 
-    // ── Build the consolidated ESM import block ────────────────────────────────
+    // Build the consolidated ESM import block 
     const HOOK_NAMES = ['useState', 'useEffect', 'useRef', 'useCallback', 'useMemo',
       'createContext', 'useContext', 'useReducer', 'useId',
       'useLayoutEffect', 'useTransition', 'useDeferredValue'];

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -11,6 +11,11 @@ import { Socket } from 'socket.io';
 dotenv.config();
 
 import passport from './config/githubAuth';
+
+// Extend Express Request to include rawBody for Stripe webhook verification
+interface RequestWithRawBody extends Request {
+  rawBody?: Buffer;
+}
 
 // Import utilities
 import { connectDatabase } from './config/database';
@@ -84,7 +89,7 @@ const maxFileSize = process.env.MAX_FILE_SIZE || '10485760'; // 10MB default
 app.use(express.json({
   limit: maxFileSize,
   // Preservar el rawBody para verificar la firma del webhook de Stripe
-  verify: (req: any, _res, buf) => {
+  verify: (req: RequestWithRawBody, _res, buf) => {
     req.rawBody = buf;
   }
 }));

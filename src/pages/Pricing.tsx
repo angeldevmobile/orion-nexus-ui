@@ -41,12 +41,9 @@ export default function Pricing() {
   }, [toast]);
 
   const handlePlanClick = (planName: string, planPrice: string) => {
-    if (planName === "Enterprise") {
-      setContactSalesOpen(true);
-    } else {
-      setSelectedPlan({ name: planName, price: planPrice });
-      setPaymentModalOpen(true);
-    }
+    if (planName === "Free") return;
+    setSelectedPlan({ name: planName, price: planPrice });
+    setPaymentModalOpen(true);
   };
 
   const plans = [
@@ -98,7 +95,7 @@ export default function Pricing() {
         "Capacitación personalizada",
         "Despliegue on-premise",
       ],
-      cta: "Contactar ventas",
+      cta: "Actualizar a Enterprise",
       popular: false,
     },
   ];
@@ -191,10 +188,20 @@ export default function Pricing() {
 
                     <Button
                       onClick={() => handlePlanClick(plan.name, plan.price)}
-                      className="w-full bg-primary hover:bg-primary/90 transition-all hover:scale-[1.02]"
+                      disabled={plan.name === "Free"}
+                      className="w-full bg-primary hover:bg-primary/90 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {plan.cta}
                     </Button>
+
+                    {plan.name === "Enterprise" && (
+                      <button
+                        onClick={() => setContactSalesOpen(true)}
+                        className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 mt-1"
+                      >
+                        ¿Precios personalizados? Hablar con ventas
+                      </button>
+                    )}
                   </CardContent>
                 </Card>
               ))}

@@ -1,11 +1,10 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Mail, Phone, Users } from "lucide-react";
+import { Building2, Mail, Clock, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ContactSalesModalProps {
@@ -20,199 +19,134 @@ export function ContactSalesModal({ open, onOpenChange }: ContactSalesModalProps
     e.preventDefault();
     toast({
       title: "¡Solicitud enviada!",
-      description: "Nuestro equipo de ventas se pondrá en contacto contigo en menos de 24 horas.",
+      description: "Nuestro equipo se pondrá en contacto contigo en menos de 24 horas.",
     });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto animate-scale-in">
-        <DialogHeader>
-          <DialogTitle className="text-3xl flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-primary" />
-            Contactar Equipo de Ventas
-          </DialogTitle>
-          <DialogDescription className="text-base">
-            Completa el formulario y nos pondremos en contacto contigo para una demostración personalizada del plan Enterprise
+      <DialogContent className="max-w-lg p-0 gap-0 border border-slate-700 bg-slate-900 rounded-xl overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-slate-800">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
+            </div>
+            <DialogTitle className="text-lg font-semibold">Plan Enterprise</DialogTitle>
+          </div>
+          <DialogDescription className="text-sm text-slate-400 ml-12">
+            Cuéntanos sobre tu equipo y te preparamos una propuesta personalizada
           </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid md:grid-cols-3 gap-6 my-6">
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-6">
-              <Mail className="w-8 h-8 text-primary mb-2" />
-              <h3 className="font-semibold mb-1">Email</h3>
-              <p className="text-sm text-muted-foreground">ventas@lovable.dev</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-6">
-              <Phone className="w-8 h-8 text-primary mb-2" />
-              <h3 className="font-semibold mb-1">Teléfono</h3>
-              <p className="text-sm text-muted-foreground">+1 (555) 123-4567</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-6">
-              <Users className="w-8 h-8 text-primary mb-2" />
-              <h3 className="font-semibold mb-1">Horario</h3>
-              <p className="text-sm text-muted-foreground">Lun - Vie, 9AM - 6PM</p>
-            </CardContent>
-          </Card>
         </div>
 
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle>Información de Contacto</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">Nombre *</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="Juan"
-                    required
-                    className="transition-all focus:scale-[1.01]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Apellido *</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Pérez"
-                    required
-                    className="transition-all focus:scale-[1.01]"
-                  />
-                </div>
-              </div>
+        {/* Info rápida */}
+        <div className="grid grid-cols-3 divide-x divide-slate-800 border-b border-slate-800 text-center text-xs text-slate-400">
+          <div className="px-3 py-3 flex flex-col items-center gap-1">
+            <Clock className="w-4 h-4 text-primary" />
+            <span>Respuesta en 24h</span>
+          </div>
+          <div className="px-3 py-3 flex flex-col items-center gap-1">
+            <Mail className="w-4 h-4 text-primary" />
+            <span>Precio negociable</span>
+          </div>
+          <div className="px-3 py-3 flex flex-col items-center gap-1">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            <span>Demo incluida</span>
+          </div>
+        </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Corporativo *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="juan@empresa.com"
-                    required
-                    className="transition-all focus:scale-[1.01]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono *</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="+52 55 1234 5678"
-                    required
-                    className="transition-all focus:scale-[1.01]"
-                  />
-                </div>
+        {/* Form */}
+        <div
+          className="overflow-y-auto max-h-[60vh] px-6 py-5"
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "#334155 transparent",
+          }}
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="firstName" className="text-xs text-slate-300">Nombre *</Label>
+                <Input id="firstName" placeholder="Juan" required className="bg-slate-800 border-slate-700 h-9 text-sm" />
               </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="company">Empresa *</Label>
-                  <Input
-                    id="company"
-                    placeholder="Nombre de tu empresa"
-                    required
-                    className="transition-all focus:scale-[1.01]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position">Cargo *</Label>
-                  <Input
-                    id="position"
-                    placeholder="Director de Tecnología"
-                    required
-                    className="transition-all focus:scale-[1.01]"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lastName" className="text-xs text-slate-300">Apellido *</Label>
+                <Input id="lastName" placeholder="Pérez" required className="bg-slate-800 border-slate-700 h-9 text-sm" />
               </div>
+            </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teamSize">Tamaño del Equipo *</Label>
-                  <Select required>
-                    <SelectTrigger id="teamSize" className="transition-all focus:scale-[1.01]">
-                      <SelectValue placeholder="Selecciona una opción" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1-10">1-10 empleados</SelectItem>
-                      <SelectItem value="11-50">11-50 empleados</SelectItem>
-                      <SelectItem value="51-200">51-200 empleados</SelectItem>
-                      <SelectItem value="201-500">201-500 empleados</SelectItem>
-                      <SelectItem value="500+">500+ empleados</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="industry">Industria *</Label>
-                  <Select required>
-                    <SelectTrigger id="industry" className="transition-all focus:scale-[1.01]">
-                      <SelectValue placeholder="Selecciona una opción" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tech">Tecnología</SelectItem>
-                      <SelectItem value="finance">Finanzas</SelectItem>
-                      <SelectItem value="healthcare">Salud</SelectItem>
-                      <SelectItem value="education">Educación</SelectItem>
-                      <SelectItem value="retail">Retail</SelectItem>
-                      <SelectItem value="other">Otra</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-xs text-slate-300">Email corporativo *</Label>
+                <Input id="email" type="email" placeholder="juan@empresa.com" required className="bg-slate-800 border-slate-700 h-9 text-sm" />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="message">Cuéntanos sobre tu proyecto *</Label>
-                <Textarea
-                  id="message"
-                  placeholder="Describe tus necesidades, objetivos y cómo el plan Enterprise puede ayudar a tu equipo..."
-                  required
-                  className="min-h-[120px] transition-all focus:scale-[1.01]"
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="company" className="text-xs text-slate-300">Empresa *</Label>
+                <Input id="company" placeholder="Nombre de la empresa" required className="bg-slate-800 border-slate-700 h-9 text-sm" />
               </div>
+            </div>
 
-              <div className="bg-secondary/50 p-4 rounded-lg space-y-2">
-                <h4 className="font-semibold text-sm">¿Qué incluye el plan Enterprise?</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Créditos IA ilimitados para tu equipo</li>
-                  <li>• SSO y seguridad empresarial avanzada</li>
-                  <li>• Gestión centralizada de equipos</li>
-                  <li>• SLA garantizado del 99.9%</li>
-                  <li>• Soporte dedicado 24/7 con respuesta prioritaria</li>
-                  <li>• Capacitación personalizada para tu equipo</li>
-                  <li>• Opción de despliegue on-premise</li>
-                </ul>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="teamSize" className="text-xs text-slate-300">Tamaño del equipo *</Label>
+                <Select required>
+                  <SelectTrigger id="teamSize" className="bg-slate-800 border-slate-700 h-9 text-sm">
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="1-10">1-10 personas</SelectItem>
+                    <SelectItem value="11-50">11-50 personas</SelectItem>
+                    <SelectItem value="51-200">51-200 personas</SelectItem>
+                    <SelectItem value="200+">200+ personas</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-
-              <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="flex-1 transition-all hover:scale-[1.02]"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 bg-primary hover:bg-primary/90 transition-all hover:scale-[1.02]"
-                >
-                  Enviar Solicitud
-                </Button>
+              <div className="space-y-1.5">
+                <Label htmlFor="industry" className="text-xs text-slate-300">Industria *</Label>
+                <Select required>
+                  <SelectTrigger id="industry" className="bg-slate-800 border-slate-700 h-9 text-sm">
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="tech">Tecnología</SelectItem>
+                    <SelectItem value="finance">Finanzas</SelectItem>
+                    <SelectItem value="healthcare">Salud</SelectItem>
+                    <SelectItem value="education">Educación</SelectItem>
+                    <SelectItem value="retail">Retail</SelectItem>
+                    <SelectItem value="other">Otra</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
 
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-4 border-t">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span>Respuesta en menos de 24 horas • Información confidencial</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="message" className="text-xs text-slate-300">¿Qué necesitas? *</Label>
+              <Textarea
+                id="message"
+                placeholder="Describe tus necesidades, número de usuarios, integraciones requeridas..."
+                required
+                className="bg-slate-800 border-slate-700 text-sm min-h-[90px] resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 h-9"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-primary hover:bg-primary/90 h-9"
+              >
+                Enviar solicitud
+              </Button>
+            </div>
+          </form>
         </div>
       </DialogContent>
     </Dialog>

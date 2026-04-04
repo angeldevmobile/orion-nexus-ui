@@ -10,7 +10,7 @@ declare module 'passport-github2' {
     photos?: Array<{ value: string }>;
     provider: string;
     _raw: string;
-    _json: Record<string, unknown>; // Changed from any
+    _json: Record<string, unknown>; 
   }
 
   export interface StrategyOptions {

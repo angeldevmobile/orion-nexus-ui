@@ -317,14 +317,14 @@ router.post('/create-files', async (req: Request, res: Response): Promise<void> 
         await fs.writeFile(fullPath, file.content, 'utf-8');
 
         result.created.push(file.path);
-        console.log(`✅ Created: ${file.path}`);
+        console.log(`Created: ${file.path}`);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         result.errors.push({
           path: file.path,
           error: errorMessage
         });
-        console.error(`❌ Failed to create ${file.path}:`, errorMessage);
+        console.error(`Failed to create ${file.path}:`, errorMessage);
       }
     }
 
