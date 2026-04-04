@@ -8,6 +8,7 @@ import { LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { emailService } from '../services/emailService'; 
 import crypto from 'crypto';
+import { getCreditStatus, initializeCredits } from '../services/creditService';
 
 interface ProfileUpdates {
   username?: string; 
@@ -46,6 +47,13 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   // Enviar correo de bienvenida
   await emailService.sendWelcomeEmail(user.email, user.username);
+
+  // Inicializar créditos del plan free
+  try {
+    await initializeCredits(String(user.id), 'free');
+  } catch (err) {
+    console.error('Failed to initialize credits on register:', err);
+  }
 
   // Generar token
   const token = generateToken({
@@ -128,10 +136,18 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   }
   const user = userResult.rows[0];
 
+  // Obtener estado de créditos en tiempo real (con auto-reset incluido)
+  let credits = null;
+  try {
+    credits = await getCreditStatus(String(user.id));
+  } catch {
+    // fail-open: si falla, no bloqueamos el perfil
+  }
+
   const response: ApiResponse = {
     success: true,
     message: 'Profile retrieved successfully',
-    data: user
+    data: { ...user, credits }
   };
 
   res.status(HTTP_STATUS.OK).json(response);

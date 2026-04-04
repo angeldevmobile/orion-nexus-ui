@@ -8,6 +8,7 @@ import { pool } from '../config/database';
 import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse } from '../types/api';
 import { asyncHandler, createError } from '../middleware/errorHandler';
+import { initializeCredits } from '../services/creditService';
 import crypto from 'crypto';
 
 // Inicialización lazy de Lemon Squeezy
@@ -39,6 +40,13 @@ const updateSubscription = async (userId: string, planName: string) => {
      WHERE id = $1`,
     [userId, planName]
   );
+
+  // Inicializar / resetear créditos al nuevo plan
+  const validPlans = ['free', 'pro', 'enterprise'] as const;
+  const normalizedPlan = planName.toLowerCase() as typeof validPlans[number];
+  if (validPlans.includes(normalizedPlan)) {
+    await initializeCredits(userId, normalizedPlan);
+  }
 };
 
 // POST /api/payments/checkout

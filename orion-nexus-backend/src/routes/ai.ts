@@ -14,6 +14,7 @@ import {
 } from '../controllers/aiController';
 import { authenticateToken } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/validation';
+import { checkCredits } from '../middleware/checkCredits';
 import { body, param } from 'express-validator';
 import path from 'path';
 import fs from 'fs/promises';
@@ -89,7 +90,7 @@ const validateIdParam = [
 // @route   POST /api/ai/chat/stream
 // @desc    Send message to AI with SSE streaming
 // @access  Public (dev) / Private (prod)
-router.post('/chat/stream', optionalAuth, sendMessageValidation, async (req: Request, res: Response) => {
+router.post('/chat/stream', optionalAuth, checkCredits('chat'), sendMessageValidation, async (req: Request, res: Response) => {
   const { message, chatHistory = [], context } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -118,7 +119,7 @@ router.post('/chat/stream', optionalAuth, sendMessageValidation, async (req: Req
 // @route   POST /api/ai/chat
 // @desc    Send message to AI (stateless chat)
 // @access  Public (dev) / Private (prod)
-router.post('/chat', optionalAuth, sendMessageValidation, async (req: Request, res: Response) => {
+router.post('/chat', optionalAuth, checkCredits('chat'), sendMessageValidation, async (req: Request, res: Response) => {
   try {
     const { message, chatHistory = [], context } = req.body;
 
@@ -159,7 +160,7 @@ router.get('/chat-session/:id', authenticateToken, validateIdParam, getChatSessi
 // @route   POST /api/ai/chat-session/:id/message
 // @desc    Send message to chat session
 // @access  Private
-router.post('/chat-session/:id/message', authenticateToken, sendMessageValidation, sendMessage);
+router.post('/chat-session/:id/message', authenticateToken, checkCredits('chat'), sendMessageValidation, sendMessage);
 
 // @route   DELETE /api/ai/chat-session/:id
 // @desc    Delete chat session
@@ -171,7 +172,7 @@ router.delete('/chat-session/:id', authenticateToken, validateIdParam, deleteCha
 // @route   POST /api/ai/generate-code
 // @desc    Generate code with AI
 // @access  Public (dev) / Private (prod)
-router.post('/generate-code', optionalAuth, generateCodeValidation, async (req: Request, res: Response) => {
+router.post('/generate-code', optionalAuth, checkCredits('generateCode'), generateCodeValidation, async (req: Request, res: Response) => {
   try {
     const { aiService } = await import('../services/aiService');
     const code = await aiService.generateCode(req.body);
@@ -188,7 +189,7 @@ router.post('/generate-code', optionalAuth, generateCodeValidation, async (req: 
 // @route   POST /api/ai/generate-project
 // @desc    Generate complete project structure with AI
 // @access  Public (dev) / Private (prod)
-router.post('/generate-project', optionalAuth, generateProjectValidation, async (req: Request, res: Response) => {
+router.post('/generate-project', optionalAuth, checkCredits('generateProject'), generateProjectValidation, async (req: Request, res: Response) => {
   try {
     const { prompt, framework = 'react' } = req.body;
     const { aiService } = await import('../services/aiService');
@@ -205,7 +206,7 @@ router.post('/generate-project', optionalAuth, generateProjectValidation, async 
 
 // @desc    Generate complete project with multiple files (optimized for filesystem)
 // @access  Public (dev) / Private (prod)
-router.post('/generate-full-project', optionalAuth, generateFullProjectValidation, async (req: Request, res: Response): Promise<void> => {
+router.post('/generate-full-project', optionalAuth, checkCredits('generateProject'), generateFullProjectValidation, async (req: Request, res: Response): Promise<void> => {
   try {
     const { prompt, framework = 'react' } = req.body;
 
@@ -237,7 +238,7 @@ router.post('/generate-full-project', optionalAuth, generateFullProjectValidatio
 // @route   POST /api/ai/generate-component
 // @desc    Generate React component with AI
 // @access  Public (dev) / Private (prod)
-router.post('/generate-component', optionalAuth, componentValidation, async (req: Request, res: Response) => {
+router.post('/generate-component', optionalAuth, checkCredits('generateComponent'), componentValidation, async (req: Request, res: Response) => {
   try {
     const { prompt, context } = req.body;
     const { aiService } = await import('../services/aiService');
@@ -257,7 +258,7 @@ router.post('/generate-component', optionalAuth, componentValidation, async (req
 // @route   POST /api/ai/explain
 // @desc    Explain code with AI
 // @access  Public (dev) / Private (prod)
-router.post('/explain', optionalAuth, codeAnalysisValidation, async (req: Request, res: Response) => {
+router.post('/explain', optionalAuth, checkCredits('analyzeCode'), codeAnalysisValidation, async (req: Request, res: Response) => {
   try {
     const { code, language } = req.body;
     const { aiService } = await import('../services/aiService');
@@ -275,7 +276,7 @@ router.post('/explain', optionalAuth, codeAnalysisValidation, async (req: Reques
 // @route   POST /api/ai/optimize
 // @desc    Optimize code with AI
 // @access  Public (dev) / Private (prod)
-router.post('/optimize', optionalAuth, codeAnalysisValidation, async (req: Request, res: Response) => {
+router.post('/optimize', optionalAuth, checkCredits('analyzeCode'), codeAnalysisValidation, async (req: Request, res: Response) => {
   try {
     const { code, language } = req.body;
     const { aiService } = await import('../services/aiService');

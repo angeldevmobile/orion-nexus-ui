@@ -7,12 +7,45 @@ import { PaymentModal } from "@/components/PaymentModal";
 import { ContactSalesModal } from "@/components/ContactSalesModal";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/service/ApiService";
+
+interface CreditStatus {
+  dailyRemaining: number;
+  dailyLimit: number;
+  monthlyRemaining: number;
+  monthlyLimit: number;
+  dailyResetAt: string;
+  monthlyResetAt: string;
+  plan: string;
+}
+
+interface ProfileResponse {
+  success: boolean;
+  data: {
+    role: string;
+    preferences?: { subscription?: string };
+    credits: CreditStatus | null;
+  };
+}
 
 export default function Pricing() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [contactSalesOpen, setContactSalesOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState({ name: "", price: "" });
+  const [credits, setCredits] = useState<CreditStatus | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<string>("free");
   const { toast } = useToast();
+
+  // Cargar créditos reales del perfil
+  useEffect(() => {
+    apiService.get<ProfileResponse>("/auth/profile")
+      .then((res) => {
+        if (res.data?.credits) setCredits(res.data.credits);
+        const sub = res.data?.preferences?.subscription ?? res.data?.credits?.plan ?? "free";
+        setCurrentPlan(sub);
+      })
+      .catch(() => {/* fail-open: mantenemos valores por defecto */});
+  }, []);
 
   // Detectar redirect de Stripe Checkout (success o cancelled)
   useEffect(() => {
@@ -100,11 +133,37 @@ export default function Pricing() {
     },
   ];
 
-  const usageStats = [
-    { label: "Créditos usados", value: "234", total: "1,000", percentage: 23 },
-    { label: "Proyectos activos", value: "8", total: "∞", percentage: 0 },
-    { label: "Generaciones IA", value: "156", total: "300", percentage: 52 },
-  ];
+  const planLabel = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+
+  // Calcular horas hasta reset diario
+  const hoursUntilReset = credits?.dailyResetAt
+    ? Math.max(0, Math.round((new Date(credits.dailyResetAt).getTime() - Date.now()) / 3_600_000))
+    : null;
+
+  const usageStats = credits
+    ? [
+        {
+          label: "Créditos diarios",
+          value: String(credits.dailyLimit - credits.dailyRemaining),
+          total: String(credits.dailyLimit),
+          percentage: credits.dailyLimit > 0
+            ? Math.round(((credits.dailyLimit - credits.dailyRemaining) / credits.dailyLimit) * 100)
+            : 0,
+          sublabel: hoursUntilReset !== null ? `Se reinician en ${hoursUntilReset}h` : undefined,
+        },
+        ...(credits.monthlyLimit > 0
+          ? [{
+              label: "Créditos mensuales",
+              value: String(credits.monthlyLimit - credits.monthlyRemaining),
+              total: String(credits.monthlyLimit),
+              percentage: Math.round(((credits.monthlyLimit - credits.monthlyRemaining) / credits.monthlyLimit) * 100),
+              sublabel: undefined,
+            }]
+          : []),
+      ]
+    : [
+        { label: "Créditos diarios", value: "–", total: "5", percentage: 0, sublabel: undefined },
+      ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -124,8 +183,8 @@ export default function Pricing() {
             {/* Current Usage */}
             <Card className="bg-card border-border mb-12">
               <CardHeader>
-                <CardTitle>Uso Actual - Plan Pro</CardTitle>
-                <CardDescription>Tu consumo este mes</CardDescription>
+                <CardTitle>Uso Actual — Plan {planLabel}</CardTitle>
+                <CardDescription>Tu consumo de créditos</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -140,9 +199,12 @@ export default function Pricing() {
                       <div className="h-2 bg-secondary rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: stat.percentage > 0 ? `${stat.percentage}%` : "5%" }}
+                          style={{ width: stat.percentage > 0 ? `${stat.percentage}%` : "2%" }}
                         />
                       </div>
+                      {stat.sublabel && (
+                        <p className="text-xs text-muted-foreground">{stat.sublabel}</p>
+                      )}
                     </div>
                   ))}
                 </div>
