@@ -8,4 +8,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+export const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  if (user?.role !== "admin") return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
 export default ProtectedRoute;

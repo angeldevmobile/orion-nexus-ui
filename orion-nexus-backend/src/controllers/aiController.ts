@@ -403,3 +403,59 @@ export const deleteChatSession = asyncHandler(async (req: Request, res: Response
 
   res.status(HTTP_STATUS.OK).json(response);
 });
+
+// GET /api/ai/history — historial completo del usuario
+export const getHistory = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user?.id) {
+    throw createError('User not authenticated', HTTP_STATUS.UNAUTHORIZED);
+  }
+  const userId = parseInt(req.user.id);
+
+  const [sessionsResult, projectsResult, statsResult] = await Promise.all([
+    // Últimas 30 sesiones activas
+    pool.query(`
+      SELECT
+        id,
+        title,
+        jsonb_array_length(COALESCE(messages, '[]'::jsonb)) AS message_count,
+        created_at,
+        updated_at
+      FROM chat_sessions
+      WHERE user_id = $1 AND is_active = true
+      ORDER BY updated_at DESC
+      LIMIT 30
+    `, [userId]),
+
+    // Últimos 10 proyectos del usuario
+    pool.query(`
+      SELECT id, name, description, created_at, updated_at
+      FROM projects
+      WHERE owner_id = $1
+      ORDER BY updated_at DESC
+      LIMIT 10
+    `, [userId]),
+
+    // Stats globales
+    pool.query(`
+      SELECT
+        COUNT(*)                                                       AS total_sessions,
+        COALESCE(SUM(jsonb_array_length(COALESCE(messages,'[]'::jsonb))), 0) AS total_messages
+      FROM chat_sessions
+      WHERE user_id = $1 AND is_active = true
+    `, [userId]),
+  ]);
+
+  const stats = statsResult.rows[0];
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: {
+      sessions:       sessionsResult.rows,
+      recentProjects: projectsResult.rows,
+      stats: {
+        totalSessions:  parseInt(stats.total_sessions,  10),
+        totalMessages:  parseInt(stats.total_messages,  10),
+      },
+    },
+  });
+});

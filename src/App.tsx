@@ -18,16 +18,17 @@ import History from "./pages/History";
 import Help from "./pages/Help";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Admin from "./pages/Admin";
 import { Header } from "./components/layout/Header";
 import { AuthProvider } from "./contexts/AuthProvider";
-import ProtectedRoute from "./contexts/ProtectedRoute";
+import ProtectedRoute, { AdminRoute } from "./contexts/ProtectedRoute";
 import AuthCallback from "./hooks/authCallback";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
 	const location = useLocation();
-	const hideHeader = ["/auth", "/auth/callback", "/ai-chat", "/editor", "/projects", "/dashboard", "/components", "/settings", "/pricing", "/community", "/history", "/help"].includes(location.pathname);
+	const hideHeader = ["/auth", "/auth/callback", "/ai-chat", "/editor", "/projects", "/dashboard", "/components", "/settings", "/pricing", "/community", "/history", "/help", "/admin"].includes(location.pathname);
 	return (
 		<>
 			{!hideHeader && <Header />}
@@ -114,6 +115,14 @@ const AppContent = () => {
 						<ProtectedRoute>
 							<Help />
 						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/admin"
+					element={
+						<AdminRoute>
+							<Admin />
+						</AdminRoute>
 					}
 				/>
 				<Route path="*" element={<NotFound />} />

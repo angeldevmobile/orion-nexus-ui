@@ -10,7 +10,8 @@ import {
   explainCode,
   optimizeCode,
   reviewCode,
-  deleteChatSession
+  deleteChatSession,
+  getHistory,
 } from '../controllers/aiController';
 import { authenticateToken } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/validation';
@@ -141,6 +142,11 @@ router.post('/chat', optionalAuth, checkCredits('chat'), sendMessageValidation, 
 });
 
 // ========== Rutas de Sesiones de Chat (con autenticación) ==========
+
+// @route   GET /api/ai/history
+// @desc    Get combined history: sessions + projects + stats
+// @access  Private
+router.get('/history', authenticateToken, getHistory);
 
 // @route   POST /api/ai/chat-session
 // @desc    Create new chat session

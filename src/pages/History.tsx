@@ -1,59 +1,104 @@
+﻿import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History as HistoryIcon, RotateCcw, Download, Trash2, GitBranch, Sparkles } from "lucide-react";
+import {
+  History as HistoryIcon,
+  Trash2,
+  MessageSquare,
+  FolderOpen,
+  RefreshCw,
+  ExternalLink,
+  AlertTriangle,
+} from "lucide-react";
+import { apiService } from "@/service/ApiService";
+
+// Types
+
+interface ChatSession {
+  id: number;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RecentProject {
+  id: number;
+  name: string;
+  description: string;
+  updated_at: string;
+}
+
+interface HistoryStats {
+  totalSessions: number;
+  totalMessages: number;
+}
+
+interface HistoryData {
+  sessions: ChatSession[];
+  recentProjects: RecentProject[];
+  stats: HistoryStats;
+}
+
+interface HistoryResponse {
+  success: boolean;
+  data: HistoryData;
+}
+
+// Helpers
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1)  return "Ahora mismo";
+  if (mins < 60) return `Hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs  < 24) return `Hace ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7)  return `Hace ${days} dia${days > 1 ? "s" : ""}`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) return `Hace ${weeks} semana${weeks > 1 ? "s" : ""}`;
+  return new Date(dateStr).toLocaleDateString("es-ES");
+}
+
+// Component
 
 export default function History() {
-  const activities = [
-    {
-      type: "ai-generation",
-      title: "Generación IA: Dashboard de Analytics",
-      description: "Creado con prompt: 'Dashboard moderno con gráficas'",
-      time: "Hace 2 horas",
-      icon: Sparkles,
-      status: "completed",
-    },
-    {
-      type: "export",
-      title: "Exportación: E-commerce Landing",
-      description: "Exportado a React con TypeScript",
-      time: "Hace 5 horas",
-      icon: Download,
-      status: "completed",
-    },
-    {
-      type: "deploy",
-      title: "Deploy: Portfolio Website",
-      description: "Desplegado en Vercel",
-      time: "Hace 1 día",
-      icon: GitBranch,
-      status: "completed",
-    },
-    {
-      type: "ai-generation",
-      title: "Generación IA: Formulario de Contacto",
-      description: "Componente creado con validación",
-      time: "Hace 2 días",
-      icon: Sparkles,
-      status: "completed",
-    },
-    {
-      type: "optimization",
-      title: "Optimización: Login Page",
-      description: "Código optimizado y refactorizado",
-      time: "Hace 3 días",
-      icon: RotateCcw,
-      status: "completed",
-    },
-  ];
+  const navigate = useNavigate();
+  const [data, setData]       = useState<HistoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
-  const versions = [
-    { version: "v3.2.1", date: "2024-01-15", changes: "Actualización de componentes UI" },
-    { version: "v3.2.0", date: "2024-01-10", changes: "Nuevo sistema de diseño" },
-    { version: "v3.1.5", date: "2024-01-05", changes: "Corrección de errores" },
-    { version: "v3.1.0", date: "2024-01-01", changes: "Integración con IA mejorada" },
-  ];
+  const fetchHistory = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiService.get<HistoryResponse>("/ai/history");
+      if (res.success) setData(res.data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error al cargar el historial");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  async function deleteSession(id: number) {
+    setDeleting(id);
+    try {
+      await apiService.delete(`/ai/chat-session/${id}`);
+      setData(prev => prev ? { ...prev, sessions: prev.sessions.filter(s => s.id !== id) } : prev);
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,137 +106,161 @@ export default function History() {
         <IconSidebar />
         <main className="flex-1 ml-14 p-8">
           <div className="max-w-6xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl font-heading font-bold mb-2 flex items-center gap-2">
-                <HistoryIcon className="w-8 h-8 text-primary" />
-                Historial y Actividad
-              </h1>
-              <p className="text-muted-foreground">
-                Revisa tus acciones y restaura versiones anteriores
-              </p>
+
+            {/* Header */}
+            <div className="flex items-start justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-heading font-bold mb-2 flex items-center gap-2">
+                  <HistoryIcon className="w-8 h-8 text-primary" />
+                  Historial y Actividad
+                </h1>
+                <p className="text-muted-foreground">Tus conversaciones y proyectos recientes</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchHistory} disabled={loading} className="gap-2">
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                Actualizar
+              </Button>
             </div>
 
+            {/* Error */}
+            {error && (
+              <div className="flex items-center gap-2 text-destructive mb-6 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Activity Timeline */}
+
+              {/* Sessions */}
               <div className="lg:col-span-2">
                 <Card className="bg-card border-border">
                   <CardHeader>
-                    <CardTitle>Actividad Reciente</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-primary" />
+                      Conversaciones con IA
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {activities.map((activity, idx) => (
-                        <div
-                          key={idx}
-                          className="relative pl-8 pb-6 border-l-2 border-border last:border-l-0 last:pb-0"
-                        >
-                          <div className="absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full bg-primary border-4 border-background" />
-                          
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <activity.icon className="w-4 h-4 text-primary" />
-                                <h3 className="font-medium">{activity.title}</h3>
-                              </div>
-                              <p className="text-sm text-muted-foreground mb-2">
-                                {activity.description}
-                              </p>
-                              <div className="flex items-center gap-3">
-                                <Badge variant="secondary" className="text-xs">
-                                  {activity.time}
-                                </Badge>
-                                <Badge className="text-xs bg-primary/10 text-primary">
-                                  {activity.status}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                              <Button variant="ghost" size="sm">
-                                <RotateCcw className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Download className="w-4 h-4" />
-                              </Button>
+                    {loading ? (
+                      <div className="space-y-4">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="animate-pulse flex gap-4 p-4 rounded-lg bg-secondary/20">
+                            <div className="w-10 h-10 rounded-full bg-secondary" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-secondary rounded w-3/4" />
+                              <div className="h-3 bg-secondary rounded w-1/2" />
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <Button variant="outline" className="w-full mt-6">
-                      Cargar más actividades
-                    </Button>
+                        ))}
+                      </div>
+                    ) : !data?.sessions.length ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <MessageSquare className="w-12 h-12 text-muted-foreground/40 mb-4" />
+                        <p className="text-muted-foreground font-medium">Sin conversaciones todavia</p>
+                        <p className="text-sm text-muted-foreground/70 mt-1">
+                          Ve al <button onClick={() => navigate("/ai-chat")} className="text-primary underline underline-offset-2">AI Chat</button> para crear tu primera sesion.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {data.sessions.map(session => (
+                          <div key={session.id} className="relative pl-8 pb-5 border-l-2 border-border last:border-l-0 last:pb-0">
+                            <div className="absolute left-0 top-1 -translate-x-1/2 w-4 h-4 rounded-full bg-primary border-4 border-background" />
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium truncate">{session.title}</h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {session.message_count} mensaje{session.message_count !== 1 ? "s" : ""}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">{timeAgo(session.updated_at ?? session.created_at)}</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate("/ai-chat")}>
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => deleteSession(session.id)}
+                                  disabled={deleting === session.id}
+                                >
+                                  {deleting === session.id
+                                    ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    : <Trash2 className="w-3.5 h-3.5" />}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Version History */}
-              <div>
+              {/* Sidebar */}
+              <div className="space-y-6">
+
+                {/* Stats */}
                 <Card className="bg-card border-border">
                   <CardHeader>
-                    <CardTitle className="text-lg">Versiones</CardTitle>
+                    <CardTitle className="text-lg">Estadisticas</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {versions.map((ver) => (
-                        <div
-                          key={ver.version}
-                          className="p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <Badge className="bg-primary/10 text-primary">
-                              {ver.version}
-                            </Badge>
-                            <Button variant="ghost" size="sm" className="h-6 px-2">
-                              <RotateCcw className="w-3 h-3" />
-                            </Button>
+                  <CardContent className="space-y-4">
+                    {loading ? (
+                      <div className="space-y-3">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="animate-pulse flex justify-between">
+                            <div className="h-4 bg-secondary rounded w-1/2" />
+                            <div className="h-4 bg-secondary rounded w-8" />
                           </div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            {ver.date}
-                          </p>
-                          <p className="text-sm">{ver.changes}</p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        <StatRow label="Conversaciones" value={String(data?.stats.totalSessions ?? 0)} />
+                        <StatRow label="Mensajes totales" value={String(data?.stats.totalMessages ?? 0)} />
+                        <StatRow label="Proyectos recientes" value={String(data?.recentProjects.length ?? 0)} />
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
-                {/* Stats Card */}
-                <Card className="bg-card border-border mt-6">
+                {/* Recent Projects */}
+                <Card className="bg-card border-border">
                   <CardHeader>
-                    <CardTitle className="text-lg">Estadísticas</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FolderOpen className="w-4 h-4 text-primary" />
+                      Proyectos recientes
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Generaciones IA</span>
-                        <span className="font-medium">248</span>
+                  <CardContent>
+                    {loading ? (
+                      <div className="space-y-2">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="animate-pulse h-12 rounded bg-secondary/20" />
+                        ))}
                       </div>
-                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full w-3/4" />
+                    ) : !data?.recentProjects.length ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">Sin proyectos todavia</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {data.recentProjects.map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => navigate("/projects")}
+                            className="w-full text-left p-2 rounded-lg hover:bg-secondary/40 transition-colors"
+                          >
+                            <p className="text-sm font-medium truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">{timeAgo(p.updated_at)}</p>
+                          </button>
+                        ))}
                       </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Exportaciones</span>
-                        <span className="font-medium">42</span>
-                      </div>
-                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full w-1/2" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Deploys</span>
-                        <span className="font-medium">18</span>
-                      </div>
-                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full w-1/4" />
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -199,6 +268,15 @@ export default function History() {
           </div>
         </main>
       </div>
+    </div>
+  );
+}
+
+function StatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-lg font-bold font-mono">{value}</span>
     </div>
   );
 }

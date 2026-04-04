@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Rocket,
   Upload,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,6 +62,21 @@ export const IconSidebar = () => {
             <Icon className="w-4 h-4" />
           </Link>
         ))}
+
+        {/* Icono de admin — solo visible para role=admin */}
+        {user?.role === "admin" && (
+          <Link
+            to="/admin"
+            title="Panel Admin"
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+              location.pathname === "/admin"
+                ? "bg-amber-500 text-white"
+                : "text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+          </Link>
+        )}
       </nav>
 
       <div

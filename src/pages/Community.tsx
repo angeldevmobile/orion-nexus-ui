@@ -90,7 +90,7 @@ function mapPost(raw: ApiPostRaw): CommunityPost {
   };
 }
 
-/* â”€â”€ Project View Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* �"?�"? Project View Modal �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"? */
 function ProjectViewModal({
   project,
   onClose,
@@ -145,7 +145,7 @@ function ProjectViewModal({
 
   const handleLike = async () => {
     if (!user) {
-      toast({ title: "Inicia sesiÃ³n", description: "Necesitas una cuenta para dar like.", variant: "destructive" });
+      toast({ title: "Inicia sesión", description: "Necesitas una cuenta para dar like.", variant: "destructive" });
       return;
     }
     if (likingInProgress || !project) return;
@@ -167,7 +167,7 @@ function ProjectViewModal({
 
   const handleAddComment = async () => {
     if (!user) {
-      toast({ title: "Inicia sesiÃ³n", description: "Necesitas una cuenta para comentar.", variant: "destructive" });
+      toast({ title: "Inicia sesión", description: "Necesitas una cuenta para comentar.", variant: "destructive" });
       return;
     }
     if (!commentText.trim() || !project) return;
@@ -264,7 +264,7 @@ function ProjectViewModal({
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : comments.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Sin comentarios aÃºn. Â¡SÃ© el primero!</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Sin comentarios aún. ¡Sé el primero!</p>
               ) : (
                 comments.map((c) => (
                   <div key={c.id} className="space-y-1">
@@ -286,7 +286,7 @@ function ProjectViewModal({
             {/* Comment input */}
             <div className="px-4 py-3 border-t border-border space-y-2">
               <Textarea
-                placeholder={user ? "Escribe un comentario..." : "Inicia sesiÃ³n para comentar"}
+                placeholder={user ? "Escribe un comentario..." : "Inicia sesión para comentar"}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 disabled={!user}
@@ -315,7 +315,7 @@ function ProjectViewModal({
   );
 }
 
-/* â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* �"?�"? Main Component �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"? */
 export default function Community() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -409,7 +409,7 @@ export default function Community() {
         tags: discTags,
         attachments: [],
       });
-      toast({ title: "Discusión creada", description: "Tu pregunta ha sido publicada." });
+      toast({ title: "Discusi�n creada", description: "Tu pregunta ha sido publicada." });
       setNewDiscOpen(false);
       setDiscTitle(""); setDiscContent(""); setDiscTags([]); setDiscTagInput("");
       fetchDiscussions(discSearch.trim() || undefined);
@@ -431,7 +431,7 @@ export default function Community() {
 
   const handleLikeFromCard = async (projectId: string) => {
     if (!user) {
-      toast({ title: "Inicia sesiÃ³n", description: "Necesitas una cuenta para dar like.", variant: "destructive" });
+      toast({ title: "Inicia sesión", description: "Necesitas una cuenta para dar like.", variant: "destructive" });
       return;
     }
     const isCurrentlyLiked = likedIds.has(projectId);
@@ -531,8 +531,8 @@ export default function Community() {
                   </div>
                 ) : projects.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
-                    <p className="text-lg font-medium">{search ? `Sin resultados para "${search}"` : "No hay proyectos aÃºn"}</p>
-                    <p className="text-sm mt-1">{search ? "Intenta con otro tÃ©rmino" : "Â¡SÃ© el primero en publicar!"}</p>
+                    <p className="text-lg font-medium">{search ? `Sin resultados para "${search}"` : "No hay proyectos aún"}</p>
+                    <p className="text-sm mt-1">{search ? "Intenta con otro término" : "¡Sé el primero en publicar!"}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -540,7 +540,7 @@ export default function Community() {
                       <Card key={project.id} className="bg-card border-border hover:border-primary/50 transition-all group overflow-hidden">
                         {/* Thumbnail */}
                         <div className="h-36 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-5xl">
-                          ðŸš€
+                          �Ys?
                         </div>
 
                         <CardHeader className="pb-2">
@@ -606,13 +606,13 @@ export default function Community() {
                 ) : leaderboard.length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <Trophy className="w-14 h-14 opacity-20 mx-auto mb-3" />
-                    <p className="text-lg font-medium">Sin datos aún</p>
-                    <p className="text-sm mt-1">¡Publica proyectos para aparecer aquí!</p>
+                    <p className="text-lg font-medium">Sin datos a�n</p>
+                    <p className="text-sm mt-1">�Publica proyectos para aparecer aqu�!</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {leaderboard.map((entry, index) => {
-                      const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null;
+                      const medal = index === 0 ? "??" : index === 1 ? "??" : index === 2 ? "??" : null;
                       return (
                         <Card key={entry.id} className={`bg-card border-border transition-all ${index < 3 ? "border-primary/30" : ""}`}>
                           <CardContent className="flex items-center gap-4 py-4">
@@ -663,7 +663,7 @@ export default function Community() {
                   </div>
                   <Button onClick={() => setNewDiscOpen(true)} className="bg-primary hover:bg-primary/90 shrink-0">
                     <Plus className="w-4 h-4 mr-2" />
-                    Nueva discusión
+                    Nueva discusi�n
                   </Button>
                 </div>
 
@@ -675,8 +675,8 @@ export default function Community() {
                 ) : discussions.length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <MessageSquare className="w-14 h-14 opacity-20 mx-auto mb-3" />
-                    <p className="text-lg font-medium">{discSearch ? `Sin resultados para "${discSearch}"` : "Sin discusiones aún"}</p>
-                    <p className="text-sm mt-1">{discSearch ? "Intenta con otro término" : "¡Sé el primero en iniciar una conversación!"}</p>
+                    <p className="text-lg font-medium">{discSearch ? `Sin resultados para "${discSearch}"` : "Sin discusiones a�n"}</p>
+                    <p className="text-sm mt-1">{discSearch ? "Intenta con otro t�rmino" : "�S� el primero en iniciar una conversaci�n!"}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -695,7 +695,7 @@ export default function Community() {
                               <div className="min-w-0">
                                 <p className="font-semibold leading-tight truncate group-hover:text-primary transition-colors">{disc.title}</p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  por {disc.author.username} · {new Date(disc.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}
+                                  por {disc.author.username} � {new Date(disc.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}
                                 </p>
                               </div>
                               {disc.is_resolved && (
@@ -745,21 +745,21 @@ export default function Community() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-primary" />
-              Nueva discusión
+              Nueva discusi�n
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateDiscussion} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Título *</label>
+              <label className="text-sm font-medium">T�tulo *</label>
               <Input
                 value={discTitle}
                 onChange={(e) => setDiscTitle(e.target.value)}
-                placeholder="¿Cuál es tu pregunta o tema?"
+                placeholder="�Cu�l es tu pregunta o tema?"
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Descripción *</label>
+              <label className="text-sm font-medium">Descripci�n *</label>
               <Textarea
                 value={discContent}
                 onChange={(e) => setDiscContent(e.target.value)}
@@ -787,7 +787,7 @@ export default function Community() {
                 <div className="flex flex-wrap gap-1 mt-1">
                   {discTags.map((t) => (
                     <Badge key={t} variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/20" onClick={() => setDiscTags((p) => p.filter((x) => x !== t))}>
-                      {t} ×
+                      {t} �
                     </Badge>
                   ))}
                 </div>
@@ -815,7 +815,7 @@ export default function Community() {
   );
 }
 
-/* ── Discussion View Modal ──────────────────────────────────────── */
+/* ?? Discussion View Modal ???????????????????????????????????????? */
 function DiscussionModal({ discussion, onClose }: { discussion: Discussion; onClose: () => void }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -842,7 +842,7 @@ function DiscussionModal({ discussion, onClose }: { discussion: Discussion; onCl
   }, [discussion.id, user]);
 
   const handleLike = async () => {
-    if (!user) { toast({ title: "Inicia sesión", description: "Necesitas una cuenta para dar like.", variant: "destructive" }); return; }
+    if (!user) { toast({ title: "Inicia sesi�n", description: "Necesitas una cuenta para dar like.", variant: "destructive" }); return; }
     if (likingInProgress) return;
     setLikingInProgress(true);
     const newLiked = !liked;
@@ -854,7 +854,7 @@ function DiscussionModal({ discussion, onClose }: { discussion: Discussion; onCl
   };
 
   const handleComment = async () => {
-    if (!user) { toast({ title: "Inicia sesión", description: "Necesitas una cuenta para responder.", variant: "destructive" }); return; }
+    if (!user) { toast({ title: "Inicia sesi�n", description: "Necesitas una cuenta para responder.", variant: "destructive" }); return; }
     if (!commentText.trim()) return;
     setPosting(true);
     try {
@@ -874,7 +874,7 @@ function DiscussionModal({ discussion, onClose }: { discussion: Discussion; onCl
             <div className="min-w-0">
               <DialogTitle className="text-lg leading-snug">{discussion.title}</DialogTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                por {discussion.author.username} · {new Date(discussion.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}
+                por {discussion.author.username} � {new Date(discussion.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}
               </p>
             </div>
             {discussion.is_resolved && (
@@ -907,7 +907,7 @@ function DiscussionModal({ discussion, onClose }: { discussion: Discussion; onCl
           {loadingComments ? (
             <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
           ) : comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-10">Sin respuestas aún. ¡Sé el primero en responder!</p>
+            <p className="text-sm text-muted-foreground text-center py-10">Sin respuestas a�n. �S� el primero en responder!</p>
           ) : (
             comments.map((c) => (
               <div key={c.id} className="flex gap-3">
@@ -929,7 +929,7 @@ function DiscussionModal({ discussion, onClose }: { discussion: Discussion; onCl
         {/* Reply input */}
         <div className="px-6 py-4 border-t border-border flex gap-3 shrink-0">
           <Textarea
-            placeholder={user ? "Escribe tu respuesta..." : "Inicia sesión para responder"}
+            placeholder={user ? "Escribe tu respuesta..." : "Inicia sesi�n para responder"}
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             disabled={!user}
