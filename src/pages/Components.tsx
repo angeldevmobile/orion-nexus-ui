@@ -1,7 +1,7 @@
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Copy, FolderOpen, X, Check, Layers, Eye, Plus, Code2, Sparkles, Loader2, Monitor } from "lucide-react";
+import { Search, Copy, FolderOpen, X, Check, Layers, Eye, Plus, Code2, Sparkles, Loader2, Monitor, Trash2 } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { COMPONENT_CATEGORIES, ComponentEntry, PREVIEW_MAP } from "@/data/componentsLibrary";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import MonacoEditor from "@/editor/MonacoEditor";
 import { apiService } from "@/service/ApiService";
 import { aiService } from "@/service/AiService";
+import { useAuth } from "@/hooks/useAuth";
 
 // ── Category pill colors ─────────────────────────────────────────────────────
 const CAT_COLORS: Record<string, string> = {
@@ -24,7 +25,84 @@ const CAT_COLORS: Record<string, string> = {
   "Data Display": "bg-teal-500/15 text-teal-300 border-teal-500/30",
 };
 
-// ── No-preview placeholder ──────────────────────────────────────────
+// Client-side preview HTML builder (for AI-generated components) 
+function buildPreviewHtml(code: string): string {
+  // Detect component name BEFORE stripping (export default might be removed)
+  const fnMatch = code.match(/export\s+default\s+function\s+([A-Z][A-Za-z0-9_]*)/);
+  const exportMatch = code.match(/export\s+default\s+([A-Z][A-Za-z0-9_]*)/);
+  const arrowMatch = code.match(/(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*=/);
+  const componentName = fnMatch?.[1] ?? exportMatch?.[1] ?? arrowMatch?.[1] ?? 'App';
+
+  // Strip all import statements and export keywords (same as backend bundler)
+  const stripped = code
+    .replace(/^\s*import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*\n?/gm, '')
+    .replace(/^\s*import\s+['"][^'"]+['"];?\s*\n?/gm, '')
+    .replace(/export\s+default\s+function\s+/g, 'function ')
+    .replace(/export\s+default\s+class\s+/g, 'class ')
+    .replace(/export\s+default\s+/g, '')
+    .replace(/^\s*export\s+\{[^}]*\};?\s*\n?/gm, '')
+    .replace(/^(\s*)export\s+(const|let|var|function|class)\s+/gm, '$1$2 ')
+    // Strip TypeScript "as Type" assertions — Babel standalone chokes on these in JSX attributes
+    .replace(/ as (?:React\.[A-Za-z]\w*(?:<[^<>]*>)?|[A-Z][\w.]*(?:<[^<>]*>)?(?:\[\])*|string|number|boolean|bigint|symbol|unknown|any|never|null|undefined|void)(?=[\s),};]|$)/g, '')
+    // Strip TypeScript interface declarations
+    .replace(/(?:export\s+)?interface\s+\w[\w<>, ]*(?:\s+extends\s+[^{]+)?\s*\{[^}]*\}/g, '')
+    // Strip TypeScript type alias declarations
+    .replace(/(?:export\s+)?type\s+\w+(?:<[^>]*>)?\s*=\s*[^;]+;/g, '')
+    .trim();
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Preview</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18",
+      "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
+      "react-dom": "https://esm.sh/react-dom@18",
+      "react-dom/client": "https://esm.sh/react-dom@18/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.462.0",
+      "recharts": "https://esm.sh/recharts@2.13.3",
+      "clsx": "https://esm.sh/clsx@2.1.1",
+      "tailwind-merge": "https://esm.sh/tailwind-merge@2.5.4",
+      "framer-motion": "https://esm.sh/framer-motion@11.11.17"
+    }
+  }
+  </script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    tailwind = { config: { theme: { extend: { colors: { primary: '#8B5CF6', accent: '#06B6D4' } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, sans-serif; min-height: 100vh; background: #0F0F1A; overflow: hidden; }
+    #root { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    #__err { display:none; padding:12px; background:#1e1e2e; color:#f38ba8; font-family:monospace; font-size:12px; white-space:pre-wrap; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="__err"></div>
+  <script type="text/babel" data-type="module" data-presets="react,typescript">
+    import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, useReducer, useId } from 'react';
+    import { createRoot } from 'react-dom/client';
+
+    ${stripped}
+
+    try {
+      createRoot(document.getElementById('root')).render(React.createElement(${componentName}));
+    } catch(e) {
+      const el = document.getElementById('__err');
+      if (el) { el.style.display = 'block'; el.textContent = e.message; }
+    }
+  </script>
+</body>
+</html>`;
+}
+
+//  No-preview placeholder 
 function NoPreview({ fileName }: { fileName?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 text-zinc-600">
@@ -47,8 +125,10 @@ interface ApiComponent {
   file_name: string | null;
   is_system: boolean;
   framework: string;
-  creator_id: number | null;
-  creator_name: string | null;
+  creator_id?: number | null;
+  creator_name?: string | null;
+  creator?: { id: number; username?: string; email?: string; avatar?: string } | null;
+  preview_html?: string | null;
 }
 
 function apiToEntry(c: ApiComponent): ComponentEntry {
@@ -62,6 +142,10 @@ function apiToEntry(c: ApiComponent): ComponentEntry {
     preview: PREVIEW_MAP[slug],
     code: c.code,
     fileName: c.file_name ?? `${c.name.replace(/\s+/g, "")}.tsx`,
+    dbId: c.id,
+    isSystem: c.is_system,
+    creatorId: c.creator?.id ?? c.creator_id ?? null,
+    previewHtml: c.preview_html ?? null,
   };
 }
 
@@ -196,7 +280,7 @@ function CreateComponentModal({
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="w-4 h-4 text-violet-400" />
                 <span className="text-sm font-semibold text-violet-300">Generar con IA</span>
-                <span className="text-xs text-zinc-600 ml-auto">Describe el componente y la IA generará el código</span>
+                <span className="text-xs text-zinc-600 ml-auto">Describe el componente</span>
               </div>
               <div className="flex gap-2">
                 <input
@@ -300,7 +384,7 @@ function CreateComponentModal({
               <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2 flex-shrink-0">
                 <Monitor className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="text-xs font-semibold text-zinc-300">Vista previa en vivo</span>
-                <span className="ml-auto text-[10px] text-zinc-600">Renderizado por IA</span>
+                <span className="ml-auto text-[10px] text-zinc-600">Renderizado</span>
               </div>
               <div className="flex-1 min-h-0 bg-[#080810]">
                 <iframe
@@ -353,22 +437,32 @@ function CategoryPill({ cat, active, onClick }: { cat: string; active: boolean; 
   );
 }
 
-// ── Component Card ───────────────────────────────────────────────────────────
+// Component Card 
 function ComponentCard({
   entry,
   onCopy,
   onUse,
   onExpand,
   copied,
+  currentUserId,
+  onDelete,
 }: {
   entry: ComponentEntry;
   onCopy: (entry: ComponentEntry) => void;
   onUse: (entry: ComponentEntry) => void;
   onExpand: (entry: ComponentEntry) => void;
   copied: string | null;
+  currentUserId?: string | null;
+  onDelete?: (entry: ComponentEntry) => void;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isCopied = copied === entry.id;
   const catColor = CAT_COLORS[entry.category] ?? "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
+  const canDelete = !entry.isSystem && entry.dbId != null && currentUserId && entry.creatorId === parseInt(currentUserId);
+  // Build iframe preview for API components that have no static preview
+  const iframePreview = !entry.preview && entry.dbId != null && entry.code
+    ? (entry.previewHtml || buildPreviewHtml(entry.code))
+    : null;
 
   return (
     <div className="group relative bg-[#111118] border border-white/8 rounded-2xl overflow-hidden hover:border-white/20 transition-all duration-200 flex flex-col">
@@ -382,9 +476,29 @@ function ComponentCard({
         <div className="absolute inset-0 opacity-20"
           style={{ backgroundImage: "radial-gradient(circle, #ffffff12 1px, transparent 1px)", backgroundSize: "24px 24px" }}
         />
-        <div className="relative z-10 p-6 flex items-center justify-center">
-          {entry.preview ? <entry.preview /> : <NoPreview fileName={entry.fileName} />}
-        </div>
+        {iframePreview ? (
+          <iframe
+            srcDoc={iframePreview}
+            sandbox="allow-scripts"
+            title={entry.name}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '200%',
+              height: '200%',
+              border: 'none',
+              pointerEvents: 'none',
+              transform: 'scale(0.5)',
+              transformOrigin: 'top left',
+            }}
+            {...({ credentialless: '' } as object)}
+          />
+        ) : (
+          <div className="relative z-10 p-6 flex items-center justify-center">
+            {entry.preview ? <entry.preview /> : <NoPreview fileName={entry.fileName} />}
+          </div>
+        )}
       </div>
 
       {/* Info strip */}
@@ -398,6 +512,26 @@ function ComponentCard({
             {entry.category}
           </span>
         </div>
+
+        {/* Confirm delete overlay */}
+        {confirmDelete && (
+          <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+            <span className="text-xs text-red-300 flex-1">¿Eliminar este componente?</span>
+            <button
+              onClick={() => { onDelete?.(entry); setConfirmDelete(false); }}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-500 transition-colors"
+            >
+              Sí, eliminar
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2 pt-1">
           <button
             onClick={() => onExpand(entry)}
@@ -420,6 +554,15 @@ function ComponentCard({
             <FolderOpen className="w-3.5 h-3.5" />
             Usar
           </button>
+          {canDelete && !confirmDelete && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all"
+              title="Eliminar componente"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -495,9 +638,30 @@ function ComponentModal({
               <div className="absolute inset-0 opacity-10"
                 style={{ backgroundImage: "radial-gradient(circle, #ffffff18 1px, transparent 1px)", backgroundSize: "28px 28px" }}
               />
-              <div className="relative z-10">
-                {entry.preview ? <entry.preview /> : <NoPreview fileName={entry.fileName} />}
-              </div>
+              {entry.preview ? (
+                <div className="relative z-10">
+                  <entry.preview />
+                </div>
+              ) : (entry.previewHtml || entry.code) && entry.dbId != null ? (
+                <iframe
+                  srcDoc={entry.previewHtml || buildPreviewHtml(entry.code)}
+                  sandbox="allow-scripts"
+                  title={entry.name}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                  }}
+                  {...({ credentialless: '' } as object)}
+                />
+              ) : (
+                <div className="relative z-10">
+                  <NoPreview fileName={entry.fileName} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -546,6 +710,7 @@ export default function Components() {
   const [apiLoaded, setApiLoaded] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch from API and merge with static PREVIEW_MAP
   const loadFromApi = useCallback(async () => {
@@ -591,6 +756,17 @@ export default function Components() {
     setCopiedId(entry.id);
     setTimeout(() => setCopiedId(null), 2000);
     toast({ title: "Código copiado", description: `${entry.name} listo para pegar.` });
+  }, [toast]);
+
+  const handleDelete = useCallback(async (entry: ComponentEntry) => {
+    if (!entry.dbId) return;
+    try {
+      await apiService.deleteComponent(entry.dbId);
+      setAllComponents(prev => prev.filter(c => c.id !== entry.id));
+      toast({ title: "Componente eliminado", description: `${entry.name} fue eliminado.` });
+    } catch {
+      toast({ title: "Error al eliminar", description: "No se pudo eliminar el componente.", variant: "destructive" });
+    }
   }, [toast]);
 
   const handleUse = useCallback(async (entry: ComponentEntry) => {
@@ -693,6 +869,8 @@ export default function Components() {
                   onUse={handleUse}
                   onExpand={setModalEntry}
                   copied={copiedId}
+                  currentUserId={user?.id}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>

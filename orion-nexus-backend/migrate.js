@@ -82,6 +82,11 @@ async function migrate() {
     `);
     console.log('OK: components.creator_id made nullable');
 
+    await pool.query(`
+      ALTER TABLE components ADD COLUMN IF NOT EXISTS preview_html TEXT;
+    `);
+    console.log('OK: components.preview_html column added');
+
     // Expand category check to include new frontend categories
     await pool.query(`
       ALTER TABLE components DROP CONSTRAINT IF EXISTS components_category_check;

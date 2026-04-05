@@ -4,7 +4,8 @@ import {
   getComponents,
   getComponentById,
   updateComponent,
-  rateComponent
+  rateComponent,
+  deleteComponent
 } from '../controllers/componentController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -35,5 +36,10 @@ router.put('/:id', authenticateToken, updateComponent);
 // @desc    Rate component
 // @access  Private
 router.post('/:id/rate', authenticateToken, rateComponent);
+
+// @route   DELETE /api/components/:id
+// @desc    Delete component (creator only)
+// @access  Private
+router.delete('/:id', authenticateToken, deleteComponent);
 
 export default router;

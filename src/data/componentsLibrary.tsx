@@ -9,6 +9,10 @@ export interface ComponentEntry {
   preview?: React.FC;
   code: string;
   fileName: string;
+  dbId?: number | null;
+  isSystem?: boolean;
+  creatorId?: number | null;
+  previewHtml?: string | null;
 }
 
 export const COMPONENT_CATEGORIES = [

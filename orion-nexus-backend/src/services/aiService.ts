@@ -626,7 +626,7 @@ REGLAS IMPORTANTES:
    * using Import Maps + esm.sh so real ES module imports work in the browser.
    * This is the "instant" preview shown while WebContainer boots.
    */
-  private async generateLovablePreviewHTML(files: { path: string; content: string }[]): Promise<string> {
+  async generateLovablePreviewHTML(files: { path: string; content: string }[]): Promise<string> {
     // ── CSS files → inlined as <style> tags ───────────────────────────────────
     const cssFiles = files.filter(f =>
       f.path.endsWith('.css') &&
@@ -825,7 +825,7 @@ try {
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; background: #0F0F1A; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; background: #0F0F1A; overflow: hidden; }
     #root { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
     #__preview_error {
       display: none; padding: 16px; background: #1e1e2e; color: #f38ba8;
@@ -967,7 +967,7 @@ ${prompt}
     try {
       parsed = JSON.parse(jsonText);
     } catch (err) {
-      console.error('JSON parse error:', err, 'raw:', raw);
+      console.error('JSON parse error:', err, 'raw:', rawText);
       throw new Error('Failed to parse JSON from model response');
     }
 
@@ -976,9 +976,6 @@ ${prompt}
       throw new Error('Generated object missing required fields');
     }
 
-    // Override the AI-generated previewHtml (which often uses bare ES imports or
-    // unpkg UMD scripts that break under COEP) with our robust import-map + Babel
-    // based renderer that sources everything from esm.sh (CORP-compliant).
     try {
       const robustPreview = await this.generateLovablePreviewHTML(parsed.files);
       if (robustPreview) parsed.previewHtml = robustPreview;

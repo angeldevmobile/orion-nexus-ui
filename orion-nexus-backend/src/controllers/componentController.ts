@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse, PaginationQuery } from '../types/api';
 import { asyncHandler, createError } from '../middleware/errorHandler';
+import { aiService } from '../services/aiService';
 
 interface QueryParams {
   category?: string;
@@ -33,6 +34,7 @@ interface ComponentRow {
   creator_avatar: string;
   avg_rating: string;
   rating_count: string;
+  preview_html: string | null;
 }
 
 // Add this interface for rating row data
@@ -51,9 +53,14 @@ interface RatingRow {
 export const createComponent = asyncHandler(async (req: Request, res: Response) => {
   const { name, description, category, code, props, framework, tags } = req.body;
 
+  // Generate preview HTML on the backend so the card can render it directly
+  const previewHtml = await aiService
+    .generateLovablePreviewHTML([{ path: `${name}.tsx`, content: code }])
+    .catch(() => null);
+
   const query = `
-    INSERT INTO components (name, description, category, code, props, framework, creator_id, tags, is_public)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+    INSERT INTO components (name, description, category, code, props, framework, creator_id, tags, is_public, preview_html)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
     RETURNING *
   `;
 
@@ -65,7 +72,8 @@ export const createComponent = asyncHandler(async (req: Request, res: Response) 
     JSON.stringify(props || []),
     framework,
     req.user?.id,
-    tags || []
+    tags || [],
+    previewHtml
   ];
 
   const result = await pool.query(query, values);
@@ -81,7 +89,7 @@ export const createComponent = asyncHandler(async (req: Request, res: Response) 
   
   const componentWithCreator = {
     ...component,
-    props: JSON.parse(component.props),
+    props: Array.isArray(component.props) ? component.props : (typeof component.props === 'string' ? JSON.parse(component.props || '[]') : (component.props ?? [])),
     creator: creatorResult.rows[0]
   };
 
@@ -190,6 +198,7 @@ export const getComponents = asyncHandler(async (req: Request, res: Response) =>
     rating_count: parseInt(row.rating_count || '0'),
     created_at: row.created_at,
     updated_at: row.updated_at,
+    preview_html: row.preview_html ?? null,
     creator: {
       id: row.creator_id,
       username: row.creator_name,
@@ -499,6 +508,41 @@ export const rateComponent = asyncHandler(async (req: Request, res: Response) =>
     success: true,
     message: 'Component rated successfully',
     data: component
+  };
+
+  res.status(HTTP_STATUS.OK).json(response);
+});
+
+export const deleteComponent = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id || isNaN(parseInt(id))) {
+    throw createError('Invalid component ID', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const checkResult = await pool.query(
+    'SELECT creator_id, is_system FROM components WHERE id = $1',
+    [id]
+  );
+
+  if (checkResult.rows.length === 0) {
+    throw createError('Component not found', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (checkResult.rows[0].is_system) {
+    throw createError('System components cannot be deleted', HTTP_STATUS.FORBIDDEN);
+  }
+
+  if (checkResult.rows[0].creator_id !== parseInt(req.user?.id || '0')) {
+    throw createError('Only the component creator can delete it', HTTP_STATUS.FORBIDDEN);
+  }
+
+  await pool.query('DELETE FROM components WHERE id = $1', [id]);
+
+  const response: ApiResponse = {
+    success: true,
+    message: 'Component deleted successfully',
+    data: null
   };
 
   res.status(HTTP_STATUS.OK).json(response);
