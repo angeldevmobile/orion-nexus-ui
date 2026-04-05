@@ -18,6 +18,7 @@ dist-ssr
 !.env.example
 orion-nexus-backend/.env
 orion-nexus-backend/.env.*
+!orion-nexus-backend/.env.example
 
 # Editor directories and files
 .vscode/*
