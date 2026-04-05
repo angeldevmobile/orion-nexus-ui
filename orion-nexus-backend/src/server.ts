@@ -1,4 +1,5 @@
-import express, { Request } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -25,7 +26,7 @@ import { promptCache } from './services/promptCache';
 
 // Import routes
 import authRoutes from './routes/auth';
-import projectRoutes from './routes/projetcs'; 
+import projectRoutes from './routes/projetcs';
 import aiRoutes from './routes/ai';
 import userRoutes from './routes/users';
 import componentRoutes from './routes/components';
@@ -34,6 +35,7 @@ import paymentRoutes from './routes/payment';
 import adminRoutes from './routes/admin';
 import docsRoutes from './routes/docs';
 import teamRoutes from './routes/team';
+import previewRoutes, { PREVIEWS_DIR } from './routes/preview';
 
 const app = express();
 const server = createServer(app);
@@ -122,6 +124,22 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/docs', docsRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/preview', previewRoutes);
+
+// Static preview serving — /preview/:id/...
+app.use('/preview', (req: Request, res: Response, next: NextFunction) => {
+  const parts = req.url.split('/').filter(Boolean);
+  if (parts.length === 0) { res.status(404).send('Not found'); return; }
+  const id = parts[0];
+  const previewDir = path.join(PREVIEWS_DIR, id);
+  req.url = '/' + parts.slice(1).join('/');
+  express.static(previewDir, { index: 'index.html' })(req, res, () => {
+    // SPA fallback — serve index.html for any unmatched path
+    res.sendFile(path.join(previewDir, 'index.html'), (err: Error) => {
+      if (err) res.status(404).send('Preview not found');
+    });
+  });
+});
 
 // Health check with AI system metrics
 app.get('/api/health', (_req, res) => {

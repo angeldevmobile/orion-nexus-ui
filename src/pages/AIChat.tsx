@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Github,
   Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
@@ -30,6 +32,7 @@ import { apiService } from "@/service/ApiService";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { dumpFsToJson } from "@/editor/fileSystem/lightningFsAdapter";
+import { buildProject } from "@/editor/runtime/orionContainer";
 import ReactMarkdown from "react-markdown";
 import type { UIComponentData } from "@/service/AiService";
 
@@ -247,6 +250,7 @@ export default function AIChat() {
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeTab, setActiveTab] = useState('preview');
   const [viteReady, setViteReady] = useState(false);
+  const [buildingPreview, setBuildingPreview] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -266,6 +270,7 @@ export default function AIChat() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [chatVisible, setChatVisible] = useState(true);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [pushingGitHub, setPushingGitHub] = useState(false);
@@ -406,6 +411,36 @@ export default function AIChat() {
     }
   };
 
+  const handleOpenInNewTab = async () => {
+    if (buildingPreview) return;
+    setBuildingPreview(true);
+    try {
+      toast({ title: 'Buildeando...', description: 'Compilando el proyecto, un momento.' });
+      const distFiles = await buildProject();
+
+      // Fix asset paths in index.html so they work as relative URLs
+      if (distFiles['index.html']) {
+        distFiles['index.html'] = distFiles['index.html']
+          .replace(/src="\/assets\//g, 'src="./assets/')
+          .replace(/href="\/assets\//g, 'href="./assets/');
+      }
+
+      const backendBase = (import.meta.env.VITE_API_URL as string || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+      const res = await fetch(`${backendBase}/api/preview/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: distFiles }),
+      });
+      if (!res.ok) throw new Error('Upload falló');
+      const { url } = await res.json() as { url: string };
+      window.open(url, '_blank');
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'No se pudo publicar', variant: 'destructive' });
+    } finally {
+      setBuildingPreview(false);
+    }
+  };
+
   const deviceClass = {
     desktop: 'w-full h-full',
     tablet: 'w-[768px] h-[1024px] mx-auto',
@@ -436,6 +471,7 @@ export default function AIChat() {
       <IconSidebar />
 
       {/* ── Left: Chat ───────────────────────────────────────────── */}
+      {chatVisible && (
       <div className="w-[360px] flex-shrink-0 border-r border-border flex flex-col bg-card">
         {/* Minimal top bar — only trash when there are messages */}
         {messages.length > 0 && (
@@ -536,10 +572,22 @@ export default function AIChat() {
         </div>
       </div>
 
+      )}
+
       {/* ── Right: Preview / Code ────────────────────────────────── */}
       <div className="flex-1 flex flex-col bg-background min-w-0">
         {/* Toolbar */}
         <div className="border-b border-border px-3 py-2 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setChatVisible(v => !v)}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              title={chatVisible ? 'Ocultar chat' : 'Mostrar chat'}
+            >
+              {chatVisible ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+            </Button>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
             <TabsList>
               <TabsTrigger value="preview" className="gap-2 text-xs">
@@ -561,6 +609,7 @@ export default function AIChat() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          </div>
 
           <div className="flex items-center gap-2">
             <div className="flex gap-1 p-1 bg-secondary rounded-lg">
@@ -587,17 +636,7 @@ export default function AIChat() {
               <Download className="w-3 h-3 mr-1" />
               Exportar
             </Button>
-            {previewUrl && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(previewUrl, '_blank')}
-                className="text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
-              >
-                <ExternalLink className="w-3 h-3 mr-1" />
-                Nueva pestaña
-              </Button>
-            )}
+
             <Button
               variant="outline"
               size="sm"
@@ -608,6 +647,22 @@ export default function AIChat() {
               <Code2 className="w-3 h-3 mr-1" />
               Abrir Editor
             </Button>
+            {wcStatus === 'ready' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenInNewTab}
+                disabled={buildingPreview}
+                className="text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
+              >
+                {buildingPreview ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-3 h-3 mr-1" />
+                )}
+                Nueva pestaña
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -644,9 +699,9 @@ export default function AIChat() {
 
               <div className="flex-1 overflow-hidden relative">
                 {previewUrl ? (
-                  <div className="h-full flex items-start justify-center overflow-auto bg-muted/20 p-4 animate-in fade-in duration-500 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-white/30">
+                  <div className={`h-full flex items-start justify-center overflow-auto animate-in fade-in duration-500 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-white/30 ${device !== 'desktop' ? 'bg-muted/20 p-4' : ''}`}>
                     <div
-                      className={`${deviceClass} bg-[#0F0F1A] rounded-lg border border-white/10 shadow-2xl overflow-hidden transition-all duration-300 relative`}
+                      className={`${deviceClass} overflow-hidden transition-all duration-300 relative ${device !== 'desktop' ? 'bg-[#0F0F1A] rounded-lg border border-white/10 shadow-2xl' : ''}`}
                       style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
                     >
                       <iframe

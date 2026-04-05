@@ -19,6 +19,7 @@ interface ChatStore {
   messages: Message[];
   sending: boolean;
   streamingContent: string;
+  generatingFiles: string[];
   generatedCode: string;
   previewHtml: string;
   previewUrl: string;
@@ -101,21 +102,29 @@ const DEFAULT_PACKAGE_JSON = JSON.stringify({
   version: '1.0.0',
   type: 'module',
   scripts: { dev: 'vite --host', build: 'vite build', preview: 'vite preview' },
-  dependencies: { react: '^18.2.0', 'react-dom': '^18.2.0' },
+  dependencies: {
+    react: '^18.3.1',
+    'react-dom': '^18.3.1',
+    'react-router-dom': '^6.26.0',
+    'clsx': '^2.1.1',
+    'tailwind-merge': '^2.5.2',
+    'lucide-react': '^0.462.0',
+    'class-variance-authority': '^0.7.0',
+  },
   devDependencies: {
-    '@types/react': '^18.2.0',
-    '@types/react-dom': '^18.2.0',
-    '@vitejs/plugin-react': '^4.0.0',
+    '@types/react': '^18.3.3',
+    '@types/react-dom': '^18.3.0',
+    '@vitejs/plugin-react-swc': '^3.5.0',
     tailwindcss: '^3.4.0',
     postcss: '^8.4.0',
     autoprefixer: '^10.4.0',
-    typescript: '^5.3.0',
-    vite: '^5.0.0',
+    typescript: '^5.5.3',
+    vite: '^5.4.1',
   },
 }, null, 2);
 
 const DEFAULT_VITE_CONFIG = `import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react-swc';
 export default defineConfig({ plugins: [react()] });
 `;
 
@@ -274,6 +283,7 @@ export const useChat = create<ChatStore>((set, get) => ({
   messages: [],
   sending: false,
   streamingContent: '',
+  generatingFiles: [],
   generatedCode: '',
   previewHtml: '',
   previewUrl: '',
@@ -290,9 +300,9 @@ export const useChat = create<ChatStore>((set, get) => ({
       messages: [...state.messages, userMsg],
       sending: true,
       streamingContent: '',
-      previewUrl: '',
-      wcStatus: 'idle',
-      wcLogs: [],
+      generatingFiles: [],
+      // Do NOT reset wcStatus/previewUrl — if the WebContainer is already running,
+      // bootWebContainer will hot-update files instead of doing a full cold boot.
     }));
 
     const priorMessages = get().messages.slice(0, -1);
@@ -325,12 +335,29 @@ export const useChat = create<ChatStore>((set, get) => ({
     const currentUiData = get().uiData;
     let existingFilesContext = '';
     if (currentUiData?.files && currentUiData.files.length > 0) {
-      const sourceFiles = currentUiData.files
-        .filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts') || f.path.endsWith('.css'))
-        .slice(0, 12); // cap to avoid token overflow
-      if (sourceFiles.length > 0) {
-        existingFilesContext = `\n\n[PROYECTO ACTUAL — actualiza estos archivos, no los regeneres desde cero]\n${
-          sourceFiles.map(f => `// FILE: ${f.path}\n${f.content}`).join('\n\n---\n\n')
+      const allSource = currentUiData.files
+        .filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts') || f.path.endsWith('.css'));
+
+      // Prioritize structural files so the AI always sees the router and main entry points
+      const PRIORITY = ['App.tsx', 'App.ts', 'main.tsx', 'router', 'routes', 'index.tsx'];
+      const sorted = [
+        ...allSource.filter(f => PRIORITY.some(p => f.path.includes(p))),
+        ...allSource.filter(f => !PRIORITY.some(p => f.path.includes(p))),
+      ];
+
+      if (sorted.length > 0) {
+        // Include complete files until budget — always cut on file boundaries, never mid-file
+        let budget = 12000;
+        const includedFiles: string[] = [];
+        for (const f of sorted) {
+          const entry = `// FILE: ${f.path}\n${f.content}`;
+          // Always include the first file (App/router) even if large; skip rest if over budget
+          if (includedFiles.length > 0 && entry.length > budget) break;
+          includedFiles.push(entry);
+          budget -= entry.length;
+        }
+        existingFilesContext = `\n\n[PROYECTO ACTUAL — modifica o extiende estos archivos según lo pedido, crea los archivos nuevos que hagan falta]\n${
+          includedFiles.join('\n\n---\n\n')
         }`;
       }
     }
@@ -355,19 +382,16 @@ export const useChat = create<ChatStore>((set, get) => ({
         },
         async (enriched) => {
           enrichedData = enriched;
-
-          // 1. Set generated code immediately
-          set({ generatedCode: enriched.reactCode });
-
-          // 2. Write all files to virtual FS
+          set({ generatedCode: enriched.reactCode, generatingFiles: [] });
           await writeFilesToVirtualFS(enriched.files);
-
-          // 3. Boot WebContainer in background
-          if (enriched.files.length > 0) {
-            bootWebContainer(enriched.files);
-          }
+          if (enriched.files.length > 0) bootWebContainer(enriched.files);
         },
-        () => { /* static esm.sh preview disabled — WebContainer is used instead */ }
+        () => { /* static preview disabled */ },
+        (filePath) => {
+          // Real-time file announcement from backend stream
+          set(s => ({ generatingFiles: [...s.generatingFiles, filePath] }));
+        },
+        (_desc) => { /* description preview — no-op for now */ }
       );
     } catch {
       // Fallback: non-streaming
@@ -531,6 +555,7 @@ export const useChat = create<ChatStore>((set, get) => ({
   clearChat: () => set({
     messages: [],
     streamingContent: '',
+    generatingFiles: [],
     generatedCode: '',
     previewHtml: '',
     previewUrl: '',

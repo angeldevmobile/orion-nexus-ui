@@ -234,3 +234,47 @@ export async function updateFilesInContainer(files: Record<string, string>): Pro
 export async function getWebContainer(): Promise<WebContainer | null> {
   return webcontainer;
 }
+
+/**
+ * Runs `vite build` inside the WebContainer and returns the dist/ files
+ * as a flat record { "index.html": "...", "assets/index.js": "..." }.
+ */
+export async function buildProject(): Promise<Record<string, string>> {
+  if (!webcontainer) throw new Error('WebContainer no inicializado');
+
+  const buildProcess = await webcontainer.spawn('npm', ['run', 'build']);
+
+  // Drain output (required to avoid hanging)
+  const reader = buildProcess.output.getReader();
+  try {
+    while (true) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const exitCode = await buildProcess.exit;
+  if (exitCode !== 0) throw new Error('vite build falló');
+
+  // Read dist/ recursively
+  const files: Record<string, string> = {};
+
+  async function readDir(dirPath: string) {
+    const entries = await webcontainer!.fs.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = `${dirPath}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await readDir(fullPath);
+      } else {
+        const content = await webcontainer!.fs.readFile(fullPath, 'utf-8');
+        // Store relative to dist/ e.g. "assets/index-abc.js"
+        files[fullPath.replace(/^\/dist\//, '')] = content;
+      }
+    }
+  }
+
+  await readDir('/dist');
+  return files;
+}

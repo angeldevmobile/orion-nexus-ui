@@ -80,7 +80,9 @@ class AIService {
     context: ChatContext | undefined,
     onChunk: (chunk: string) => void,
     onEnriched?: (data: EnrichedPayload) => void,
-    onPreview?: (previewHtml: string) => void
+    onPreview?: (previewHtml: string) => void,
+    onFile?: (filePath: string) => void,
+    onDescription?: (desc: string) => void
   ): Promise<void> {
     const response = await fetch(`${BASE_URL}/ai/chat/stream`, {
       method: 'POST',
@@ -117,8 +119,11 @@ class AIService {
           const chunk = parsed.chunk;
 
           if (chunk === '__BUILDING__') {
-            // Heartbeat — backend is generating, nothing to show yet
             onChunk('__BUILDING__');
+          } else if (chunk.startsWith('__FILE__:')) {
+            if (onFile) onFile(chunk.slice('__FILE__:'.length));
+          } else if (chunk.startsWith('__DESC__:')) {
+            if (onDescription) onDescription(chunk.slice('__DESC__:'.length));
           } else if (chunk.startsWith('__ENRICHED__:')) {
             if (onEnriched) {
               try {
