@@ -1,7 +1,7 @@
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Copy, FolderOpen, X, Check, Layers, Eye, Plus, Code2, Sparkles, Loader2, Monitor, Trash2 } from "lucide-react";
+import { Search, Copy, FolderOpen, X, Check, Layers, Eye, Plus, Code2, Sparkles, Loader2, Monitor, Trash2, Lock, Zap } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { COMPONENT_CATEGORIES, ComponentEntry, PREVIEW_MAP } from "@/data/componentsLibrary";
@@ -11,6 +11,14 @@ import MonacoEditor from "@/editor/MonacoEditor";
 import { apiService } from "@/service/ApiService";
 import { aiService } from "@/service/AiService";
 import { useAuth } from "@/hooks/useAuth";
+
+// ── Pro-only categories (free users see locked overlay) ─────────────────────
+const PRO_CATEGORIES = new Set(['Animations', 'Loaders', 'Data Display']);
+
+function isProLocked(entry: ComponentEntry, subscription?: string | null): boolean {
+  if (subscription === 'pro' || subscription === 'enterprise') return false;
+  return PRO_CATEGORIES.has(entry.category) || entry.tags.includes('pro');
+}
 
 // ── Category pill colors ─────────────────────────────────────────────────────
 const CAT_COLORS: Record<string, string> = {
@@ -421,18 +429,19 @@ function CreateComponentModal({
   );
 }
 
-function CategoryPill({ cat, active, onClick }: { cat: string; active: boolean; onClick: () => void }) {
+function CategoryPill({ cat, active, onClick, isPro }: { cat: string; active: boolean; onClick: () => void; isPro?: boolean }) {
   const color = CAT_COLORS[cat] ?? "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap ${
+      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap flex items-center gap-1 ${
         active
           ? `${color} scale-105 shadow-sm`
           : "bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
       {cat}
+      {isPro && <Lock className="w-2.5 h-2.5 opacity-70" />}
     </button>
   );
 }
@@ -446,6 +455,7 @@ function ComponentCard({
   copied,
   currentUserId,
   onDelete,
+  subscription,
 }: {
   entry: ComponentEntry;
   onCopy: (entry: ComponentEntry) => void;
@@ -454,7 +464,10 @@ function ComponentCard({
   copied: string | null;
   currentUserId?: string | null;
   onDelete?: (entry: ComponentEntry) => void;
+  subscription?: string | null;
 }) {
+  const locked = isProLocked(entry, subscription);
+  const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isCopied = copied === entry.id;
   const catColor = CAT_COLORS[entry.category] ?? "bg-zinc-500/15 text-zinc-300 border-zinc-500/30";
@@ -465,17 +478,42 @@ function ComponentCard({
     : null;
 
   return (
-    <div className="group relative bg-[#111118] border border-white/8 rounded-2xl overflow-hidden hover:border-white/20 transition-all duration-200 flex flex-col">
+    <div className={`group relative bg-[#111118] border rounded-2xl overflow-hidden transition-all duration-200 flex flex-col ${
+      locked
+        ? 'border-violet-500/20 hover:border-violet-500/40'
+        : 'border-white/8 hover:border-white/20'
+    }`}>
       {/* Preview area */}
       <div
         className="relative flex items-center justify-center bg-zinc-950 overflow-hidden cursor-pointer"
         style={{ minHeight: 180 }}
-        onClick={() => onExpand(entry)}
+        onClick={() => locked ? navigate('/pricing') : onExpand(entry)}
       >
         {/* Grid background */}
         <div className="absolute inset-0 opacity-20"
           style={{ backgroundImage: "radial-gradient(circle, #ffffff12 1px, transparent 1px)", backgroundSize: "24px 24px" }}
         />
+
+        {/* Pro lock overlay */}
+        {locked && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#0d0010]/80 backdrop-blur-sm">
+            <div className="w-10 h-10 rounded-full bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+              <Lock className="w-5 h-5 text-violet-400" />
+            </div>
+            <div className="text-center px-3">
+              <p className="text-xs font-semibold text-white/90">Solo para Pro</p>
+              <p className="text-[10px] text-white/40 mt-0.5">Actualiza tu plan para acceder</p>
+            </div>
+            <button
+              onClick={e => { e.stopPropagation(); navigate('/pricing'); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-500 transition-colors shadow-lg shadow-violet-500/30"
+            >
+              <Zap className="w-3 h-3" />
+              Desbloquear con Pro
+            </button>
+          </div>
+        )}
+
         {iframePreview ? (
           <iframe
             srcDoc={iframePreview}
@@ -533,6 +571,16 @@ function ComponentCard({
         )}
 
         <div className="flex gap-2 pt-1">
+          {locked ? (
+            <button
+              onClick={() => navigate('/pricing')}
+              className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-semibold bg-violet-600/80 text-white hover:bg-violet-500 transition-colors"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Actualizar a Pro
+            </button>
+          ) : (
+            <>
           <button
             onClick={() => onExpand(entry)}
             className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-white/10 text-zinc-300 hover:bg-white/5 hover:text-white transition-all"
@@ -562,6 +610,8 @@ function ComponentCard({
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+          )}
+            </>
           )}
         </div>
       </div>
@@ -844,6 +894,7 @@ export default function Components() {
                     cat={`${cat} (${counts[cat]})`}
                     active={activeCategory === cat}
                     onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                    isPro={PRO_CATEGORIES.has(cat)}
                   />
                 ))}
               </div>
@@ -871,6 +922,7 @@ export default function Components() {
                   copied={copiedId}
                   currentUserId={user?.id}
                   onDelete={handleDelete}
+                  subscription={user?.preferences?.subscription}
                 />
               ))}
             </div>

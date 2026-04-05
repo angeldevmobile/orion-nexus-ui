@@ -17,6 +17,11 @@ async function migrate() {
     console.log('OK: github_id column added');
 
     await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS github_access_token TEXT;
+    `);
+    console.log('OK: github_access_token column added');
+
+    await pool.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
     `);
     console.log('OK: reset_token column added');

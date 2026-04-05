@@ -60,16 +60,16 @@ passport.use(
 
         if (!user) {
           const insertResult = await pool.query(
-            `INSERT INTO users (username, email, github_id, role)
-             VALUES ($1, $2, $3, $4)
+            `INSERT INTO users (username, email, github_id, github_access_token, role)
+             VALUES ($1, $2, $3, $4, $5)
              RETURNING id, email, role`,
-            [profile.username, email, githubId, "user"]
+            [profile.username, email, githubId, accessToken, "user"]
           );
           user = insertResult.rows[0];
-        } else if (!user.github_id) {
+        } else {
           await pool.query(
-            'UPDATE users SET github_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-            [githubId, user.id]
+            'UPDATE users SET github_id = COALESCE(github_id, $1), github_access_token = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+            [githubId, accessToken, user.id]
           );
         }
 

@@ -320,10 +320,25 @@ export const useChat = create<ChatStore>((set, get) => ({
         .join('\n\n')}`;
     }
 
+    // If there's an existing generated project, pass its source files as context
+    // so Claude updates the existing code instead of starting from scratch.
+    const currentUiData = get().uiData;
+    let existingFilesContext = '';
+    if (currentUiData?.files && currentUiData.files.length > 0) {
+      const sourceFiles = currentUiData.files
+        .filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts') || f.path.endsWith('.css'))
+        .slice(0, 12); // cap to avoid token overflow
+      if (sourceFiles.length > 0) {
+        existingFilesContext = `\n\n[PROYECTO ACTUAL — actualiza estos archivos, no los regeneres desde cero]\n${
+          sourceFiles.map(f => `// FILE: ${f.path}\n${f.content}`).join('\n\n---\n\n')
+        }`;
+      }
+    }
+
     const context = fileContext
-      ? { fileContext: fileContext + componentContext }
-      : componentContext
-        ? { fileContext: componentContext }
+      ? { fileContext: fileContext + componentContext + existingFilesContext }
+      : (componentContext || existingFilesContext)
+        ? { fileContext: componentContext + existingFilesContext }
         : undefined;
     let fullResponse = ''; // only accumulates conversational text (not JSON)
     let enrichedData: EnrichedPayload | null = null;
@@ -334,7 +349,6 @@ export const useChat = create<ChatStore>((set, get) => ({
         chatHistory,
         context,
         (chunk) => {
-          // Ignore the building heartbeat and any raw JSON leftovers
           if (chunk === '__BUILDING__') return;
           fullResponse += chunk;
           set({ streamingContent: fullResponse });
@@ -354,6 +368,13 @@ export const useChat = create<ChatStore>((set, get) => ({
           // 3. Boot WebContainer in background
           if (enriched.files.length > 0) {
             bootWebContainer(enriched.files);
+          }
+        },
+        (previewHtml) => {
+          // Static preview arrives after __ENRICHED__ — update only if WebContainer
+          // isn't ready yet (previewUrl means the live preview is already showing).
+          if (!useChatStore.getState().previewUrl) {
+            set({ previewHtml });
           }
         }
       );

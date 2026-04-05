@@ -354,3 +354,153 @@ export const updateProjectFiles = asyncHandler(async (req: Request, res: Respons
 
   res.status(HTTP_STATUS.OK).json(response);
 });
+
+// Push proyecto a GitHub
+export const pushToGitHub = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const userId = parseInt(req.user?.id || '0');
+
+  // Obtener proyecto + token de GitHub del owner
+  const projectResult = await pool.query(
+    `SELECT p.*, u.github_access_token, u.username as owner_username
+     FROM projects p
+     JOIN users u ON p.owner_id = u.id
+     WHERE p.id = $1`,
+    [id]
+  );
+  if (projectResult.rows.length === 0) {
+    throw createError('Project not found', HTTP_STATUS.NOT_FOUND);
+  }
+  const project = projectResult.rows[0];
+
+  if (project.owner_id !== userId) {
+    throw createError('Access denied', HTTP_STATUS.FORBIDDEN);
+  }
+
+  const githubToken = project.github_access_token as string | null;
+  if (!githubToken) {
+    throw createError(
+      'No GitHub account linked. Please log in with GitHub to use this feature.',
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+
+  const ghHeaders: Record<string, string> = {
+    Authorization: `token ${githubToken}`,
+    Accept: 'application/vnd.github+json',
+    'Content-Type': 'application/json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+
+  // 1. Verificar usuario de GitHub
+  const meRes = await fetch('https://api.github.com/user', { headers: ghHeaders });
+  if (!meRes.ok) {
+    throw createError('Failed to fetch GitHub user info. Token may be invalid.', HTTP_STATUS.BAD_REQUEST);
+  }
+  const ghUser = await meRes.json() as { login: string };
+
+  // 2. Crear repositorio
+  const repoName = project.name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 100) || 'orion-project';
+
+  const createRepoRes = await fetch('https://api.github.com/user/repos', {
+    method: 'POST',
+    headers: ghHeaders,
+    body: JSON.stringify({
+      name: repoName,
+      description: project.description || 'Created with Orion Nexus Studio',
+      private: false,
+      auto_init: false,
+    }),
+  });
+
+  if (!createRepoRes.ok) {
+    const err = await createRepoRes.json() as { message?: string };
+    throw createError(
+      `GitHub: ${err.message || 'Could not create repository'}`,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+  const repo = await createRepoRes.json() as { full_name: string; html_url: string };
+
+  // 3. Construir README con firma de Orion
+  const settings = project.settings ? JSON.parse(project.settings) : {};
+  const framework = settings.framework ?? 'vanilla';
+
+  const readmeContent = [
+    `# ${project.name}`,
+    '',
+    project.description ? `> ${project.description}` : '',
+    '',
+    '## 🚀 About',
+    '',
+    'This project was created with **[Orion Nexus Studio](https://orion-nexus.dev)** — the AI-powered cloud IDE.',
+    '',
+    '| Property | Value |',
+    '|----------|-------|',
+    `| Framework | ${framework} |`,
+    `| Author | @${ghUser.login} |`,
+    `| Date | ${new Date().toISOString().split('T')[0]} |`,
+    '',
+    '---',
+    '',
+    '```',
+    '  ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗',
+    ' ██╔═══██╗██╔══██╗██║██╔═══██╗████╗  ██║',
+    ' ██║   ██║██████╔╝██║██║   ██║██╔██╗ ██║',
+    ' ██║   ██║██╔══██╗██║██║   ██║██║╚██╗██║',
+    ' ╚██████╔╝██║  ██║██║╚██████╔╝██║ ╚████║',
+    '  ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝',
+    '         Nexus Studio — Build Faster.',
+    '```',
+    '',
+    '_Powered by [Orion Nexus Studio](https://orion-nexus.dev)_',
+  ].join('\n');
+
+  interface ProjectFile {
+    name: string;
+    path?: string;
+    content?: string;
+  }
+
+  const uploadFile = async (filePath: string, content: string) => {
+    const encoded = Buffer.from(content).toString('base64');
+    const r = await fetch(
+      `https://api.github.com/repos/${repo.full_name}/contents/${filePath}`,
+      {
+        method: 'PUT',
+        headers: ghHeaders,
+        body: JSON.stringify({ message: `Add ${filePath}`, content: encoded }),
+      }
+    );
+    if (!r.ok) {
+      const e = await r.json() as { message?: string };
+      console.error(`Failed to upload ${filePath}: ${e.message}`);
+    }
+  };
+
+  // README primero
+  await uploadFile('README.md', readmeContent);
+
+  // Archivos del proyecto
+  const projectFiles: ProjectFile[] = JSON.parse(project.files || '[]');
+  for (const file of projectFiles) {
+    if (!file.name || file.content === undefined) continue;
+    const cleanPath = file.path && file.path !== '/'
+      ? `${file.path.replace(/^\//, '')}/${file.name}`
+      : file.name;
+    await uploadFile(cleanPath, file.content ?? '');
+  }
+
+  const response: ApiResponse = {
+    success: true,
+    message: 'Project pushed to GitHub successfully',
+    data: { repoUrl: repo.html_url, repoName: repo.full_name },
+  };
+
+  res.status(HTTP_STATUS.OK).json(response);
+});

@@ -131,162 +131,123 @@ interface FullProjectResult {
 }
 
 class AIService {
+  private buildSystemPrompt(context?: ChatContext): string {
+    return `Eres Orion, un asistente de diseño y desarrollo web especializado en crear interfaces React+Vite visualmente impresionantes, al estilo de lovable.dev.
+
+TIENES DOS MODOS DE RESPUESTA — tú decides cuál usar según el mensaje del usuario y el historial de conversación:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODO 1: GENERACIÓN DE INTERFAZ (XML)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Úsalo cuando el usuario pida crear, diseñar, agregar, continuar, modificar o mejorar cualquier interfaz, pantalla, sección, componente o elemento visual. Esto incluye peticiones como "continúa", "agrega una sección de X", "modifica el diseño", "hazlo más X", o cualquier petición que implique generar o actualizar código visual.
+
+REGLAS CRÍTICAS PARA CONTINUACIONES:
+• Si el contexto incluye archivos del proyecto actual (marcados con [PROYECTO ACTUAL]), DEBES partir de ellos. NO generes un proyecto desde cero.
+• Conserva todos los archivos existentes sin cambios. Solo modifica o añade lo que el usuario pide.
+• Si pide "agregar sección de Ventas", crea el componente nuevo y actualiza App.tsx para integrarlo, sin tocar lo demás.
+• Siempre devuelve el proyecto COMPLETO en el XML (todos los archivos, incluyendo los no modificados).
+
+FILOSOFÍA DE DISEÑO — aplica siempre:
+• Paleta oscura premium: fondos #0A0A0F o #0F0F1A
+• Acentos vibrantes: cyan #06B6D4, violeta #8B5CF6, emerald #10B981, rose #F43F5E
+• Glassmorphism: backdrop-blur-xl, bg-white/5, border border-white/10
+• Gradientes: from-cyan-500/20 via-violet-500/10 to-transparent
+• Sombras: shadow-2xl, shadow-cyan-500/25
+• Micro-animaciones: hover:scale-105, transition-all duration-300
+• Cards: bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6
+
+Responde ÚNICAMENTE con este XML (sin texto extra, sin markdown, sin bloques de código):
+<project>
+  <type>ui_component</type>
+  <description>Descripción breve en español de lo que construiste</description>
+  <designInfo>
+    <colors primary="#06B6D4" secondary="#8B5CF6" background="#0F0F1A"/>
+    <effects>Gradients,Glassmorphism,Hover animations</effects>
+    <layout>Grid/Flexbox moderno</layout>
+    <components>Navbar,Card,Button</components>
+  </designInfo>
+  <files>
+    <file path="package.json"><![CDATA[
+{contenido exacto}
+    ]]></file>
+    <file path="index.html"><![CDATA[
+{contenido exacto}
+    ]]></file>
+    <file path="src/main.tsx"><![CDATA[
+{contenido exacto}
+    ]]></file>
+    <file path="src/App.tsx"><![CDATA[
+{contenido exacto}
+    ]]></file>
+    <file path="src/components/Feature/Component.tsx"><![CDATA[
+{contenido exacto}
+    ]]></file>
+  </files>
+</project>
+
+REGLAS MODO 1:
+1. SIEMPRE incluye package.json, index.html, src/main.tsx, src/App.tsx
+2. Múltiples archivos con responsabilidades claras (components/ui/, components/layout/)
+3. TypeScript estricto con interfaces bien definidas
+4. El contenido de cada archivo va dentro de CDATA
+5. Imports/exports correctos y consistentes entre todos los archivos
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODO 2: RESPUESTA CONVERSACIONAL (texto)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Úsalo cuando el usuario haga preguntas, dé feedback general, salude, o pida explicaciones sin solicitar cambios visuales. Responde en español, de forma clara y concisa, sin XML.${context?.fileContext ? `\n\nContexto de archivos disponible:\n${context.fileContext}` : ''}${context?.codeContext ? `\n\nCódigo de contexto:\n${context.codeContext}` : ''}`;
+  }
+
   async generateResponse(message: string, options: GenerateResponseOptions = {}): Promise<string> {
     try {
       const { chatHistory = [], context } = options;
 
-      const isUIGenerationRequest = /login|formulario|dashboard|interfaz|pantalla|registro|landing|desplegable|campos|producto|servicio|opciones|tarjeta|navbar|sidebar|modal|tabla|grid|lista|menu|header|footer|card|button|input|form|search|perfil|usuario|configuración|settings|componente/i.test(message);
+      const systemMessage = this.buildSystemPrompt(context);
 
-      if (isUIGenerationRequest) {
-        const systemMessage = `Eres un diseñador UI/UX experto y arquitecto de proyectos React+Vite. Tu misión es generar interfaces VISUALMENTE IMPRESIONANTES, modernas y profesionales que sorprendan al usuario, mientras cumples exactamente lo que pide.
+      const claudeMsgs: ClaudeMessage[] = chatHistory.slice(-12).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+      claudeMsgs.push({ role: 'user', content: message });
 
-FILOSOFÍA DE DISEÑO — aplica SIEMPRE estos principios:
-• Paleta oscura premium: fondos #0A0A0F o #0F0F1A, nunca blancos planos
-• Acentos vibrantes: cyan #06B6D4, violeta #8B5CF6, emerald #10B981, rose #F43F5E
-• Glassmorphism: backdrop-blur-xl, bg-white/5, border border-white/10
-• Gradientes ricos: from-cyan-500/20 via-violet-500/10 to-transparent
-• Sombras dramáticas: shadow-2xl, shadow-cyan-500/25
-• Tipografía con jerarquía: títulos grandes bold, subtítulos con opacidad
-• Micro-animaciones: hover:scale-105, transition-all duration-300, hover:shadow-cyan-500/40
-• Bordes sutiles: border border-white/10, rounded-2xl, rounded-3xl
-• Cards flotantes: bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6
-• Inputs elegantes: bg-white/5 border border-white/10 focus:border-cyan-500/50 rounded-xl
-
-GENERA SIEMPRE esta estructura de proyecto Vite completa:
-- package.json (con dependencias react, react-dom, tailwindcss)
-- index.html (con <link rel="icon" type="image/svg+xml" href="/favicon.svg" />)
-- vite.config.ts
-- tailwind.config.js
-- src/main.tsx (monta la app en #root)
-- src/App.tsx (componente raíz que importa los demás)
-- src/components/[Feature]/[Component].tsx (componentes específicos del prompt)
-- src/hooks/use[Feature].ts (hooks si aplica)
-- src/types/index.ts (interfaces/types si aplica)
-- public/favicon.svg (SVG 32x32 temático según el proyecto, colores acordes al diseño)
-- public/robots.txt (User-agent: * / Allow: / / Sitemap: /sitemap.xml)
-- public/placeholder.svg (imagen de placeholder 400x300, minimalista, tonos oscuros)
-
-Responde con este JSON EXACTO (sin texto extra):
-
-{
-  "type": "ui_component",
-  "description": "Una breve descripción en español (1-2 oraciones) de lo que construiste: qué hace la interfaz, qué estilo visual tiene y qué componentes destacan.",
-  "designInfo": {
-    "colors": { "primary": "#06B6D4", "secondary": "#8B5CF6", "background": "#0F0F1A" },
-    "effects": ["Gradients", "Glassmorphism", "Hover animations"],
-    "layout": "Grid/Flexbox moderno",
-    "components": ["Navbar", "Card", "Button"]
-  },
-  "files": [
-    {
-      "path": "package.json",
-      "content": '{"name":"orion-project","version":"1.0.0","type":"module","scripts":{"dev":"vite","build":"vite build"},"dependencies":{"react":"latest","react-dom":"latest"},"devDependencies":{"@types/react":"latest","@types/react-dom":"latest","@vitejs/plugin-react":"latest","tailwindcss":"latest","typescript":"latest","vite":"latest"}}'
-    },
-    {
-      "path": "index.html",
-      "content": '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Orion App</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>'
-    },
-    {
-      "path": "src/main.tsx",
-      "content": "import React from 'react';\\nimport ReactDOM from 'react-dom/client';\\nimport App from './App';\\nimport './index.css';\\nReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);"
-    },
-    {
-      "path": "src/App.tsx",
-      "content": "import React from 'react';\nimport LoginForm from './components/auth/LoginForm';\nexport default function App() { return <div className='min-h-screen bg-gray-950'><LoginForm /></div>; }"
-    },
-    {
-      "path": "src/components/auth/LoginForm.tsx",
-      "content": "..."
-    }
-  ]
-}
-
-REGLAS IMPORTANTES:
-1. SIEMPRE incluye package.json, index.html, src/main.tsx, src/App.tsx
-2. Separa en múltiples archivos con responsabilidades claras
-3. Crea subcarpetas lógicas (components/auth/, components/ui/, components/layout/)
-4. Todos los imports/exports deben ser correctos y consistentes entre archivos
-5. TypeScript estricto con interfaces bien definidas
-6. Estilo premium oscuro: glassmorphism, gradientes, animaciones suaves — NUNCA interfaces planas o aburridas
-7. Los componentes deben ser funcionales con hooks de React
-8. src/App.tsx debe importar y componer todos los demás componentes
-9. Escribe la "description" explicando brevemente qué construiste y qué lo hace especial visualmente`;
-
-        // Use Claude Sonnet for UI generation — better React/TS code quality.
-        // Request JSON output explicitly in the user message (prefill not supported in Claude 4+).
-        const claudeCompletion = await claude.messages.create({
-          model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
-          max_tokens: 16000,
-          system: systemMessage,
-          messages: [
-            { role: 'user', content: `GENERA PROYECTO VITE COMPLETO (responde SOLO con el JSON, sin texto extra ni markdown): ${message}` },
-          ],
-        });
-
-        const rawText = (claudeCompletion.content[0] as { type: string; text: string })?.text || '';
-        if (!rawText) throw new Error('No content generated');
-
-        // Extract JSON object from response (strip any surrounding markdown fences)
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('No JSON found in response');
-        const parsed = JSON.parse(jsonMatch[0]);
-
-        const allFiles: { path: string; content: string }[] = parsed.files || [];
-        const mainFile = allFiles.find(f => f.path.includes('App.tsx')) || allFiles[0];
-        const reactCode = mainFile?.content || '';
-        const previewHtml = allFiles.length > 0 ? await this.generateLovablePreviewHTML(allFiles) : '';
-
-        return JSON.stringify({
-          ...parsed,
-          reactCode,
-          previewHtml,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      //  FLUJO NORMAL PARA CHAT CONVERSACIONAL (usar Claude)
-      let systemMessage = `You are an AI assistant specialized in web development and coding. 
-      You help developers with React, Vue, Angular, TypeScript, JavaScript, and other web technologies.
-      Provide helpful, accurate, and concise responses in Spanish.`;
-
-      if (context?.projectId) {
-        systemMessage += `\n\nWorking on project ID: ${context.projectId}`;
-      }
-
-      if (context?.fileContext) {
-        systemMessage += `\n\nCurrent file context: ${context.fileContext}`;
-      }
-
-      if (context?.codeContext) {
-        systemMessage += `\n\nCode context: ${context.codeContext}`;
-      }
-
-      // Use Claude for conversational responses (better for explanations)
-      const messages: ClaudeMessage[] = [];
-
-      // Add chat history (last 10 messages for context)
-      const recentHistory = chatHistory.slice(-10);
-      recentHistory.forEach(msg => {
-        messages.push({
-          role: msg.role,
-          content: msg.content
-        });
-      });
-
-      // Add current message
-      messages.push({
-        role: 'user',
-        content: message
-      });
-
-      const response = await claude.messages.create({
-        model: process.env.CLAUDE_MODEL_FAST || 'claude-3-haiku-20240307',
-        max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || '1500'),
+      const completion = await claude.messages.create({
+        model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+        max_tokens: 16000,
         system: systemMessage,
-        messages: messages
+        messages: claudeMsgs,
       });
 
-      return response.content[0].type === 'text' ? response.content[0].text : 'No pude generar una respuesta.';
+      const rawText = (completion.content[0] as { type: string; text: string })?.text || '';
+      if (!rawText) throw new Error('No content generated');
+
+      // Detect mode from response
+      const isXmlResponse = rawText.trimStart().startsWith('<project>') || /<file\s+path=/.test(rawText);
+      if (!isXmlResponse) return rawText;
+
+      // Parse XML and return enriched JSON (same format the streaming path uses)
+      const files: { path: string; content: string }[] = [];
+      const fileRegex = /<file\s+path="([^"]+)">\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/file>/g;
+      let fileMatch: RegExpExecArray | null;
+      while ((fileMatch = fileRegex.exec(rawText)) !== null) {
+        files.push({ path: fileMatch[1], content: fileMatch[2].trim() });
+      }
+      if (files.length === 0) throw new Error('No valid files in XML response');
+
+      const descMatch = rawText.match(/<description>([\s\S]*?)<\/description>/);
+      const description = descMatch ? descMatch[1].trim() : '';
+      const mainFile = files.find(f => f.path.includes('App.tsx')) || files[0];
+      const reactCode = mainFile?.content || '';
+      const previewHtml = files.length > 0 ? await this.generateLovablePreviewHTML(files) : '';
+
+      return JSON.stringify({
+        type: 'ui_component',
+        description,
+        reactCode,
+        previewHtml,
+        files,
+        designInfo: { colors: {}, effects: [], layout: '', components: [] },
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
       console.error('AI Service Error:', error);
       throw error;
@@ -694,16 +655,28 @@ REGLAS IMPORTANTES:
       `import { createRoot } from 'react-dom/client';`,
     ];
 
-    // lucide-react
-    const lucideIcons = externalNamed.get('lucide-react');
-    if (lucideIcons && lucideIcons.size > 0) {
-      esmImports.push(`import { ${[...lucideIcons].join(', ')} } from 'lucide-react';`);
-    }
+    // Track seen named identifiers to prevent duplicate identifier errors across packages
+    // (e.g. both lucide-react and recharts export "PieChart", "BarChart", "LineChart", etc.)
+    const seenIdentifiers = new Set<string>();
 
-    // recharts
+    // recharts FIRST — chart-specific names take priority over icon-library names
     const rechartsItems = externalNamed.get('recharts');
     if (rechartsItems && rechartsItems.size > 0) {
-      esmImports.push(`import { ${[...rechartsItems].join(', ')} } from 'recharts';`);
+      const names = [...rechartsItems].filter(n => !seenIdentifiers.has(n));
+      names.forEach(n => seenIdentifiers.add(n));
+      if (names.length > 0) {
+        esmImports.push(`import { ${names.join(', ')} } from 'recharts';`);
+      }
+    }
+
+    // lucide-react — skip any name already claimed by recharts
+    const lucideIcons = externalNamed.get('lucide-react');
+    if (lucideIcons && lucideIcons.size > 0) {
+      const names = [...lucideIcons].filter(n => !seenIdentifiers.has(n));
+      names.forEach(n => seenIdentifiers.add(n));
+      if (names.length > 0) {
+        esmImports.push(`import { ${names.join(', ')} } from 'lucide-react';`);
+      }
     }
 
     // any other external package (named imports + optional default)
@@ -711,7 +684,9 @@ REGLAS IMPORTANTES:
       if (pkg === 'lucide-react' || pkg === 'recharts') continue;
       if (SKIP_PKGS.has(pkg)) continue;
       const defImport = externalDefault.get(pkg);
-      const namedPart = names.size > 0 ? `{ ${[...names].join(', ')} }` : '';
+      const dedupedNames = [...names].filter(n => !seenIdentifiers.has(n));
+      dedupedNames.forEach(n => seenIdentifiers.add(n));
+      const namedPart = dedupedNames.length > 0 ? `{ ${dedupedNames.join(', ')} }` : '';
       const parts = [defImport, namedPart].filter(Boolean).join(', ');
       if (parts) esmImports.push(`import ${parts} from '${pkg}';`);
     }
@@ -1460,80 +1435,45 @@ npm run build
   ): Promise<void> {
     const { chatHistory = [], context } = options;
 
-    const isUIGenerationRequest = /login|formulario|dashboard|interfaz|pantalla|registro|landing|desplegable|campos|producto|servicio|opciones|tarjeta|navbar|sidebar|modal|tabla|grid|lista|menu|header|footer|card|button|input|form|search|perfil|usuario|configuración|settings|componente/i.test(message);
+    const systemMessage = this.buildSystemPrompt(context);
 
-    if (isUIGenerationRequest) {
-      const uiSystemMessage = `Eres un experto en arquitectura de proyectos React+Vite. Genera un proyecto Vite COMPLETO.
+    // Build message history for Claude — always pass full context
+    const claudeMsgs: ClaudeMessage[] = chatHistory.slice(-12).map(m => ({
+      role: m.role as 'user' | 'assistant',
+      // Strip enriched UI data from assistant messages — keep only the description
+      content: m.content,
+    }));
+    claudeMsgs.push({ role: 'user', content: message });
 
-GENERA SIEMPRE: package.json, index.html, vite.config.ts, tailwind.config.js, src/main.tsx, src/App.tsx, src/components/...
+    // Accumulate full response — detect mode from content
+    let fullContent = '';
+    onChunk('__BUILDING__');
 
-Responde ÚNICAMENTE con este XML (sin texto extra, sin markdown, sin bloques de código):
-<project>
-  <type>ui_component</type>
-  <description>Descripción breve del proyecto</description>
-  <designInfo>
-    <colors primary="#06B6D4" secondary="#8B5CF6" background="#0F0F1A"/>
-    <effects>Gradients,Glassmorphism,Hover animations</effects>
-    <layout>Grid/Flexbox moderno</layout>
-    <components>Navbar,Card,Button</components>
-  </designInfo>
-  <files>
-    <file path="package.json"><![CDATA[
-{contenido exacto del archivo}
-    ]]></file>
-    <file path="index.html"><![CDATA[
-{contenido exacto del archivo}
-    ]]></file>
-    <file path="src/main.tsx"><![CDATA[
-{contenido exacto del archivo}
-    ]]></file>
-    <file path="src/App.tsx"><![CDATA[
-{contenido exacto del archivo}
-    ]]></file>
-    <file path="src/components/Feature/Component.tsx"><![CDATA[
-{contenido exacto del archivo}
-    ]]></file>
-  </files>
-</project>
+    const claudeStream = claude.messages.stream({
+      model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+      max_tokens: 16000,
+      system: systemMessage,
+      messages: claudeMsgs,
+    });
 
-REGLAS:
-1. SIEMPRE incluye package.json, index.html, src/main.tsx, src/App.tsx
-2. Múltiples archivos con responsabilidades claras (components/ui/, components/layout/)
-3. TypeScript estricto con interfaces
-4. Estilo lovable.dev: gradientes, glassmorphism, animaciones, modo oscuro
-5. Imports/exports correctos y consistentes entre archivos
-6. El contenido de cada archivo va dentro de CDATA — NO escapes caracteres`;
-
-      // Accumulate XML silently — do NOT stream raw chunks to client.
-      // Send a single __ENRICHED__ event once generation is complete.
-      let fullContent = '';
-
-      // Send a heartbeat so the client knows we're alive
-      onChunk('__BUILDING__');
-
-      const claudeStream = claude.messages.stream({
-        model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
-        max_tokens: 16000,
-        system: uiSystemMessage,
-        messages: [
-          { role: 'user', content: `GENERA PROYECTO VITE COMPLETO (responde SOLO con el XML indicado, sin texto extra ni markdown): ${message}` },
-        ],
-      });
-
-      for await (const event of claudeStream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          fullContent += event.delta.text;
-        }
+    for await (const event of claudeStream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        fullContent += event.delta.text;
       }
+    }
 
-      // Parse XML response (no external dependencies)
+    // Detect response mode: XML → UI generation, plain text → conversational
+    const isXmlResponse = fullContent.trimStart().startsWith('<project>') || /<file\s+path=/.test(fullContent);
+
+    if (isXmlResponse) {
+      // Parse XML and emit __ENRICHED__
       const files: Array<{ path: string; content: string }> = [];
       const fileRegex = /<file\s+path="([^"]+)">\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/file>/g;
       let fileMatch: RegExpExecArray | null;
       while ((fileMatch = fileRegex.exec(fullContent)) !== null) {
         files.push({ path: fileMatch[1], content: fileMatch[2].trim() });
       }
-      if (files.length === 0) throw new Error('AI did not return valid XML with files');
+      if (files.length === 0) throw new Error('AI returned XML but no valid files were found');
 
       const descMatch = fullContent.match(/<description>([\s\S]*?)<\/description>/);
       const description: string = descMatch ? descMatch[1].trim() : '';
@@ -1561,10 +1501,10 @@ REGLAS:
 
       const mainFile = files.find(f => f.path.includes('App.tsx')) || files[0];
       const reactCode = mainFile?.content || '';
-      const previewHtml = files.length > 0 ? await this.generateLovablePreviewHTML(files) : '';
 
+      // Emit __ENRICHED__ immediately — WebContainer starts booting right away.
       onChunk('__ENRICHED__:' + JSON.stringify({
-        previewHtml,
+        previewHtml: '',
         reactCode,
         files,
         description,
@@ -1572,32 +1512,20 @@ REGLAS:
         timestamp: new Date().toISOString(),
       }));
 
-    } else {
-      let systemMessage = `Eres un asistente de IA especializado en desarrollo web y programación.
-Ayudas a desarrolladores con React, Vue, Angular, TypeScript, JavaScript y otras tecnologías web.
-Responde siempre en español de forma clara y concisa.`;
-
-      if (context?.fileContext) systemMessage += `\n\nContexto del archivo actual: ${context.fileContext}`;
-      if (context?.codeContext) systemMessage += `\n\nCódigo de contexto: ${context.codeContext}`;
-
-      const claudeMsgs: ClaudeMessage[] = chatHistory.slice(-10).map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
-      claudeMsgs.push({ role: 'user', content: message });
-
-      const stream = claude.messages.stream({
-        model: process.env.CLAUDE_MODEL_FAST || 'claude-3-haiku-20240307',
-        max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || '1500'),
-        system: systemMessage,
-        messages: claudeMsgs,
-      });
-
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          onChunk(event.delta.text);
-        }
+      // Generate static preview in the background and emit separately.
+      // This shows something while WebContainer (10-30s) is still booting.
+      if (files.length > 0) {
+        this.generateLovablePreviewHTML(files)
+          .then(previewHtml => {
+            if (previewHtml) {
+              onChunk('__PREVIEW__:' + JSON.stringify({ previewHtml }));
+            }
+          })
+          .catch(() => { /* preview is optional — never block on failure */ });
       }
+    } else {
+      // Conversational response — stream the accumulated text
+      onChunk(fullContent);
     }
   }
 }

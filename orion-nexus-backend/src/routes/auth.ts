@@ -53,7 +53,7 @@ router.delete('/github', authenticateToken, disconnectGithub);
 // @route   GET /api/auth/github
 // @desc    Initiate GitHub OAuth authentication
 // @access  Public
-router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
+router.get('/github', passport.authenticate('github', { scope: ['user:email', 'public_repo'] }));
 
 // @route   GET /api/auth/github/callback
 // @desc    GitHub OAuth callback

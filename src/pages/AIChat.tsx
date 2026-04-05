@@ -7,7 +7,6 @@ import {
   Code2,
   Eye,
   Download,
-  Copy,
   Smartphone,
   Monitor,
   Tablet,
@@ -16,6 +15,8 @@ import {
   CheckCircle2,
   Upload,
   ChevronRight,
+  Github,
+  Loader2,
 } from "lucide-react";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
@@ -267,6 +268,57 @@ export default function AIChat() {
   const isAdmin = user?.role === "admin";
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [pushingGitHub, setPushingGitHub] = useState(false);
+  const [githubDialogOpen, setGithubDialogOpen] = useState(false);
+
+  const handlePushGitHub = async () => {
+    setPushingGitHub(true);
+    try {
+      const snapshot = await import("@/editor/fileSystem/lightningFsAdapter")
+        .then(m => m.dumpFsToJson()).catch(() => ({}));
+      const name = `Proyecto ${new Date().toLocaleDateString("es")}`;
+      const res = await apiService.post<{ data: { id: string } }>("/projects", {
+        name,
+        description: "",
+        isPublic: false,
+        settings: { framework: "vanilla", language: "javascript" },
+        files: snapshot,
+      });
+      const pushRes = await apiService.post<{ data: { repoUrl: string } }>(
+        `/projects/${res.data.id}/push-to-github`
+      );
+      toast({
+        title: "¡Repositorio creado!",
+        description: (
+          <span>
+            Tu proyecto está en GitHub:{" "}
+            <a
+              href={pushRes.data.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-primary"
+            >
+              {pushRes.data.repoUrl}
+            </a>
+          </span>
+        ),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("No GitHub account linked")) {
+        setGithubDialogOpen(true);
+      } else {
+        toast({ title: "Error", description: msg || "No se pudo conectar con GitHub.", variant: "destructive" });
+      }
+    } finally {
+      setPushingGitHub(false);
+    }
+  };
+
+  const handleConnectGitHub = () => {
+    const backendUrl = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:3000";
+    window.location.href = `${backendUrl}/api/auth/github`;
+  };
 
   const handlePublish = async (type: "template" | "community") => {
     setPublishing(true);
@@ -331,12 +383,6 @@ export default function AIChat() {
       e.preventDefault();
       handleSend();
     }
-  };
-
-  const handleCopyCode = () => {
-    if (!generatedCode) return;
-    navigator.clipboard.writeText(generatedCode);
-    toast({ title: 'Copiado', description: 'Código copiado al portapapeles' });
   };
 
   const handleExport = async () => {
@@ -532,10 +578,6 @@ export default function AIChat() {
 
             <Separator orientation="vertical" className="h-6" />
 
-            <Button variant="outline" size="sm" onClick={handleCopyCode} disabled={!generatedCode} className="text-xs h-7">
-              <Copy className="w-3 h-3 mr-1" />
-              Copiar
-            </Button>
             <Button variant="outline" size="sm" onClick={handleExport} className="text-xs h-7">
               <Download className="w-3 h-3 mr-1" />
               Exportar
@@ -568,6 +610,20 @@ export default function AIChat() {
             >
               <Code2 className="w-3 h-3 mr-1" />
               Abrir Editor
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePushGitHub}
+              disabled={!generatedCode || pushingGitHub}
+              className="text-xs h-7 border-white/20 text-white/70 hover:bg-white/10 hover:text-white"
+            >
+              {pushingGitHub ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : (
+                <Github className="w-3 h-3 mr-1" />
+              )}
+              GitHub
             </Button>
             <Button
               size="sm"
@@ -765,6 +821,33 @@ export default function AIChat() {
         {publishing && (
           <p className="text-center text-xs text-muted-foreground pt-1">Publicando...</p>
         )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Connect GitHub dialog */}
+    <Dialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Github className="w-5 h-5" />
+            Conectar GitHub
+          </DialogTitle>
+          <DialogDescription>
+            Para subir proyectos a GitHub necesitas conectar tu cuenta. Es rápido y solo se hace una vez.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 pt-2">
+          <button
+            onClick={handleConnectGitHub}
+            className="flex items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 transition-all px-5 py-4"
+          >
+            <Github className="w-5 h-5" />
+            <span className="text-sm font-medium">Conectar con GitHub</span>
+          </button>
+          <p className="text-xs text-center text-muted-foreground">
+            Solo pedimos el permiso <code className="bg-secondary px-1 rounded">public_repo</code> para crear repositorios públicos.
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
     </>

@@ -79,7 +79,8 @@ class AIService {
     chatHistory: ChatMessage[],
     context: ChatContext | undefined,
     onChunk: (chunk: string) => void,
-    onEnriched?: (data: EnrichedPayload) => void
+    onEnriched?: (data: EnrichedPayload) => void,
+    onPreview?: (previewHtml: string) => void
   ): Promise<void> {
     const response = await fetch(`${BASE_URL}/ai/chat/stream`, {
       method: 'POST',
@@ -119,13 +120,21 @@ class AIService {
             // Heartbeat — backend is generating, nothing to show yet
             onChunk('__BUILDING__');
           } else if (chunk.startsWith('__ENRICHED__:')) {
-            // Single enriched event with all data
             if (onEnriched) {
               try {
                 const enriched = JSON.parse(chunk.slice('__ENRICHED__:'.length)) as EnrichedPayload;
                 onEnriched(enriched);
               } catch (e) {
                 console.error('Failed to parse __ENRICHED__ payload', e);
+              }
+            }
+          } else if (chunk.startsWith('__PREVIEW__:')) {
+            if (onPreview) {
+              try {
+                const { previewHtml } = JSON.parse(chunk.slice('__PREVIEW__:'.length)) as { previewHtml: string };
+                onPreview(previewHtml);
+              } catch (e) {
+                console.error('Failed to parse __PREVIEW__ payload', e);
               }
             }
           } else {

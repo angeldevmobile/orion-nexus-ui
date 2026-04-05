@@ -6,10 +6,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, FolderX, MoreHorizontal, ExternalLink, Globe, Bookmark } from "lucide-react";
+import { Plus, Trash2, FolderX, MoreHorizontal, ExternalLink, Globe, Bookmark, Github } from "lucide-react";
+import { apiService } from "@/service/ApiService";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { apiService } from "@/service/ApiService";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { IconSidebar } from "@/components/layout/IconSidebar";
@@ -92,10 +92,11 @@ function ProjectMockup({ project }: { project: Project }) {
   );
 }
 
-function ProjectCard({ project, onDelete, onPublish, onClick }: {
+function ProjectCard({ project, onDelete, onPublish, onPushGitHub, onClick }: {
   project: Project;
   onDelete: (id: string, name: string) => void;
   onPublish: (project: Project) => void;
+  onPushGitHub: (project: Project) => void;
   onClick: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -154,6 +155,14 @@ function ProjectCard({ project, onDelete, onPublish, onClick }: {
             <div className="absolute right-0 bottom-9 w-48 rounded-lg border border-white/10 bg-[#1e1e28] shadow-xl z-50 overflow-hidden">
               <button
                 className="w-full px-3 py-2 text-sm text-left text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
+                onClick={() => { setMenuOpen(false); onPushGitHub(project); }}
+              >
+                <Github className="w-3.5 h-3.5 text-white/60" />
+                Push to GitHub
+              </button>
+              <div className="border-t border-white/8" />
+              <button
+                className="w-full px-3 py-2 text-sm text-left text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
                 onClick={() => { setMenuOpen(false); onPublish(project); }}
               >
                 <Globe className="w-3.5 h-3.5 text-violet-400" />
@@ -180,6 +189,8 @@ export default function Projects() {
   const [loading, setLoading] = useState(true);
   const [publishProject, setPublishProject] = useState<Project | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [pushingGitHub, setPushingGitHub] = useState<string | null>(null);
+  const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -203,6 +214,45 @@ export default function Projects() {
     } catch {
       toast({ title: "Error", description: "No se pudo eliminar el proyecto.", variant: "destructive" });
     }
+  };
+
+  const handlePushGitHub = async (project: Project) => {
+    setPushingGitHub(project.id);
+    try {
+      const res = await apiService.post<{ data: { repoUrl: string } }>(
+        `/projects/${project.id}/push-to-github`
+      );
+      toast({
+        title: "¡Repositorio creado!",
+        description: (
+          <span>
+            Proyecto subido a GitHub:{" "}
+            <a
+              href={res.data.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-primary"
+            >
+              {res.data.repoUrl}
+            </a>
+          </span>
+        ),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("No GitHub account linked")) {
+        setGithubDialogOpen(true);
+      } else {
+        toast({ title: "Error", description: msg || "No se pudo subir a GitHub.", variant: "destructive" });
+      }
+    } finally {
+      setPushingGitHub(null);
+    }
+  };
+
+  const handleConnectGitHub = () => {
+    const backendUrl = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:3000";
+    window.location.href = `${backendUrl}/api/auth/github`;
   };
 
   const handlePublish = async (type: "template" | "community") => {
@@ -279,6 +329,7 @@ export default function Projects() {
                   project={project}
                   onDelete={handleDelete}
                   onPublish={setPublishProject}
+                  onPushGitHub={handlePushGitHub}
                   onClick={() => navigate(`/editor?project=${project.id}`)}
                 />
               ))}
@@ -332,6 +383,33 @@ export default function Projects() {
           {publishing && (
             <p className="text-center text-xs text-white/40 pt-1">Publicando...</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Connect GitHub dialog */}
+      <Dialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen}>
+        <DialogContent className="max-w-sm bg-[#1a1a1f] border border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Github className="w-5 h-5" />
+              Conectar GitHub
+            </DialogTitle>
+            <DialogDescription className="text-white/50">
+              Para subir proyectos a GitHub necesitas conectar tu cuenta. Solo se hace una vez.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-2">
+            <button
+              onClick={handleConnectGitHub}
+              className="flex items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 transition-all px-5 py-4"
+            >
+              <Github className="w-5 h-5" />
+              <span className="text-sm font-medium">Conectar con GitHub</span>
+            </button>
+            <p className="text-xs text-center text-white/40">
+              Solo pedimos el permiso <code className="bg-white/10 px-1 rounded">public_repo</code> para crear repositorios públicos.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

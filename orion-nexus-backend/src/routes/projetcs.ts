@@ -6,7 +6,8 @@ import {
   getProjectById,
   updateProject,
   deleteProject,
-  updateProjectFiles
+  updateProjectFiles,
+  pushToGitHub
 } from '../controllers/projectController';
 import { authenticateToken } from '../middleware/auth';
 import { validateProject } from '../middleware/validation';
@@ -48,5 +49,10 @@ router.delete('/:id', authenticateToken, deleteProject);
 // @desc    Update project files
 // @access  Private
 router.put('/:id/files', authenticateToken, updateProjectFiles);
+
+// @route   POST /api/projects/:id/push-to-github
+// @desc    Push project to user's GitHub account
+// @access  Private
+router.post('/:id/push-to-github', authenticateToken, pushToGitHub);
 
 export default router;
