@@ -356,11 +356,8 @@ export const useChat = create<ChatStore>((set, get) => ({
         async (enriched) => {
           enrichedData = enriched;
 
-          // 1. Show skeleton / set generated code immediately
-          set({
-            previewHtml: enriched.previewHtml,
-            generatedCode: enriched.reactCode,
-          });
+          // 1. Set generated code immediately
+          set({ generatedCode: enriched.reactCode });
 
           // 2. Write all files to virtual FS
           await writeFilesToVirtualFS(enriched.files);
@@ -370,13 +367,7 @@ export const useChat = create<ChatStore>((set, get) => ({
             bootWebContainer(enriched.files);
           }
         },
-        (previewHtml) => {
-          // Static preview arrives after __ENRICHED__ — update only if WebContainer
-          // isn't ready yet (previewUrl means the live preview is already showing).
-          if (!useChatStore.getState().previewUrl) {
-            set({ previewHtml });
-          }
-        }
+        () => { /* static esm.sh preview disabled — WebContainer is used instead */ }
       );
     } catch {
       // Fallback: non-streaming
@@ -507,7 +498,7 @@ export const useChat = create<ChatStore>((set, get) => ({
         (chunk) => { fullResponse += chunk; set({ streamingContent: fullResponse }); },
         async (enriched) => {
           enrichedData = enriched;
-          set({ previewHtml: enriched.previewHtml, generatedCode: enriched.reactCode, wcError: '' });
+          set({ generatedCode: enriched.reactCode, wcError: '' });
           await writeFilesToVirtualFS(enriched.files);
           bootWebContainer(enriched.files);
         }
@@ -522,8 +513,8 @@ export const useChat = create<ChatStore>((set, get) => ({
       if (!jsonMatch) throw new Error('no json');
       const parsed = JSON.parse(jsonMatch[0]) as UIComponentData;
       if (parsed.type === 'ui_component') {
-        parsedUiData = { ...parsed, reactCode: enrichedData?.reactCode || parsed.reactCode || '', previewHtml: enrichedData?.previewHtml || parsed.previewHtml || '' };
-        set({ uiData: parsedUiData, generatedCode: parsedUiData.reactCode, previewHtml: parsedUiData.previewHtml, wcError: '' });
+        parsedUiData = { ...parsed, reactCode: enrichedData?.reactCode || parsed.reactCode || '', previewHtml: '' };
+        set({ uiData: parsedUiData, generatedCode: parsedUiData.reactCode, wcError: '' });
       }
     } catch { /* plain text fix */ }
 

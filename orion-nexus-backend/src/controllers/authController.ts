@@ -321,7 +321,7 @@ export const disconnectGithub = asyncHandler(async (req: Request, res: Response)
   }
 
   await pool.query(
-    'UPDATE users SET github_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+    'UPDATE users SET github_id = NULL, github_access_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
     [req.user.id]
   );
 

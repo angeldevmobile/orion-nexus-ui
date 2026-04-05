@@ -100,20 +100,29 @@ router.post('/chat/stream', optionalAuth, checkCredits('chat'), sendMessageValid
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
+  let closed = false;
+  req.on('close', () => { closed = true; });
+
   try {
     const { aiService } = await import('../services/aiService');
 
     await aiService.streamResponse(message, { chatHistory, context }, (chunk) => {
-      res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+      if (!closed && !res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+      }
     });
 
-    res.write('data: [DONE]\n\n');
+    if (!closed && !res.writableEnded) {
+      res.write('data: [DONE]\n\n');
+    }
   } catch (error) {
     console.error('Stream Error:', error);
-    res.write(`data: ${JSON.stringify({ error: 'Stream failed' })}\n\n`);
-    res.write('data: [DONE]\n\n');
+    if (!closed && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: 'Stream failed' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+    }
   } finally {
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 });
 

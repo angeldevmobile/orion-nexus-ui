@@ -280,7 +280,7 @@ export async function generateProjectStructure(
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No valid JSON found in response');
 
-    let jsonText = jsonMatch[0]
+    const jsonText = jsonMatch[0]
       .replace(/(['`])?([a-zA-Z0-9_]+)\1\s*:/g, '"$2":')
       .replace(/,\s*}/g, '}')
       .replace(/,\s*]/g, ']');
@@ -479,7 +479,7 @@ El proyecto debe correr con "npm install && npm run dev".`;
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No valid JSON in response');
 
-    let jsonText = jsonMatch[0]
+    const jsonText = jsonMatch[0]
       .replace(/(['`])?([a-zA-Z0-9_]+)\1\s*:/g, '"$2":')
       .replace(/,\s*}/g, '}')
       .replace(/,\s*]/g, ']');

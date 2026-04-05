@@ -319,8 +319,21 @@ try {
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; background: #0F0F1A; overflow: hidden; }
-    #root { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    html { height: 100%; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      height: 100%;
+      background: #0F0F1A;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+    * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
+    #root { min-height: 100%; display: flex; align-items: center; justify-content: center; }
     #__preview_error {
       display: none; padding: 16px; background: #1e1e2e; color: #f38ba8;
       font-family: monospace; font-size: 13px; white-space: pre-wrap;
@@ -342,6 +355,10 @@ ${renderCall}
     window.addEventListener('error', function(e) {
       var __el = document.getElementById('__preview_error');
       if (__el) { __el.style.display = 'block'; __el.textContent = e.message; }
+    });
+    // Suppress harmless AbortError from browser autoplay policy
+    window.addEventListener('unhandledrejection', function(e) {
+      if (e.reason && e.reason.name === 'AbortError') e.preventDefault();
     });
   </script>
 </body>

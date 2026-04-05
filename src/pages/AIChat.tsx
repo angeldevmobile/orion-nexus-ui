@@ -246,6 +246,7 @@ export default function AIChat() {
   const [message, setMessage] = useState('');
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeTab, setActiveTab] = useState('preview');
+  const [viteReady, setViteReady] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -254,7 +255,6 @@ export default function AIChat() {
     sending,
     streamingContent,
     generatedCode,
-    previewHtml,
     previewUrl,
     wcStatus,
     sendMessage,
@@ -351,10 +351,15 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
-  // Auto-switch to preview tab when previewHtml arrives
+  // Auto-switch to preview tab when WebContainer starts booting
   useEffect(() => {
-    if (previewHtml) setActiveTab('preview');
-  }, [previewHtml]);
+    if (wcStatus !== 'idle') setActiveTab('preview');
+  }, [wcStatus]);
+
+  // Reset Vite ready state each time a new URL arrives
+  useEffect(() => {
+    setViteReady(false);
+  }, [previewUrl]);
 
   const handleSend = async () => {
     const prompt = message.trim();
@@ -582,19 +587,11 @@ export default function AIChat() {
               <Download className="w-3 h-3 mr-1" />
               Exportar
             </Button>
-            {(previewUrl || previewHtml) && (
+            {previewUrl && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  if (previewHtml) {
-                    const blob = new Blob([previewHtml], { type: 'text/html' });
-                    const url = URL.createObjectURL(blob);
-                    window.open(url, '_blank');
-                  } else {
-                    window.open(previewUrl, '_blank');
-                  }
-                }}
+                onClick={() => window.open(previewUrl, '_blank')}
                 className="text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
               >
                 <ExternalLink className="w-3 h-3 mr-1" />
@@ -646,25 +643,26 @@ export default function AIChat() {
               )}
 
               <div className="flex-1 overflow-hidden relative">
-                {(previewUrl || previewHtml) ? (
-                  <div className="h-full flex items-start justify-center overflow-auto bg-muted/20 p-4 animate-in fade-in duration-500 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
+                {previewUrl ? (
+                  <div className="h-full flex items-start justify-center overflow-auto bg-muted/20 p-4 animate-in fade-in duration-500 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-white/30">
                     <div
-                      className={`${deviceClass} bg-white rounded-lg border border-border shadow-2xl overflow-hidden transition-all duration-300`}
+                      className={`${deviceClass} bg-[#0F0F1A] rounded-lg border border-white/10 shadow-2xl overflow-hidden transition-all duration-300 relative`}
                       style={{ minHeight: device === 'desktop' ? '100%' : undefined }}
                     >
-                      {previewUrl ? (
-                        <iframe
-                          src={previewUrl}
-                          title="Vista Previa — Vite"
-                          style={iframeStyle}
-                        />
-                      ) : (
-                        <iframe
-                          srcDoc={previewHtml}
-                          title="Vista Previa — HTML"
-                          sandbox="allow-scripts"
-                          style={iframeStyle}
-                        />
+                      <iframe
+                        src={previewUrl}
+                        title="Vista Previa — Vite"
+                        style={{
+                          ...iframeStyle,
+                          opacity: viteReady ? 1 : 0,
+                          transition: 'opacity 0.5s ease',
+                        }}
+                        onLoad={() => setViteReady(true)}
+                      />
+                      {!viteReady && (
+                        <div className="absolute inset-0">
+                          <PreviewLoadingSkeleton />
+                        </div>
                       )}
                     </div>
                   </div>

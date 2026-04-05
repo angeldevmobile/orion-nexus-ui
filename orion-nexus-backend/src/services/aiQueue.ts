@@ -1,31 +1,6 @@
 import pLimit from 'p-limit';
 import type { PlanName } from '../utils/constants';
 
-/**
- * AI concurrency queue — Lovable-style architecture.
- *
- * Two layers of protection:
- *
- * 1. Per-user queue (primary):
- *    Each user gets their own p-limit instance so they never block each other.
- *    Max concurrent requests per user depends on their plan:
- *      free:       2  (can have 2 tabs generating at once)
- *      pro:        4
- *      enterprise: 8
- *
- * 2. Global safety net (secondary):
- *    A single global pool prevents hitting Anthropic's RPM/TPM limits
- *    when the platform has many active users simultaneously.
- *    Set this based on your Anthropic tier:
- *      Tier 1 (~5 RPM):   AI_QUEUE_GLOBAL=5
- *      Tier 2 (~50 RPM):  AI_QUEUE_GLOBAL=30
- *      Tier 3+ (1000 RPM): AI_QUEUE_GLOBAL=100
- *
- * Result: User A never waits for User B. A user only waits if they
- * personally have too many concurrent requests, or the global Anthropic
- * limit is being approached.
- */
-
 // Per-user concurrency limits by plan
 const USER_CONCURRENCY: Record<PlanName, number> = {
   free:       parseInt(process.env.AI_QUEUE_USER_FREE       || '2', 10),

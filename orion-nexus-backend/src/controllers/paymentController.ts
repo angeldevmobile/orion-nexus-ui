@@ -3,6 +3,7 @@ import {
   lemonSqueezySetup,
   createCheckout,
   getSubscription,
+  cancelSubscription as lsCancelSubscription,
 } from '@lemonsqueezy/lemonsqueezy.js';
 import { pool } from '../config/database';
 import { HTTP_STATUS } from '../utils/constants';
@@ -125,7 +126,6 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
     const planName: string = custom.planName ?? custom.plan_name;
 
     if (userId && planName) {
-      // Verificar suscripción activa vía API si es subscription_created
       if (eventName === 'subscription_created') {
         const subId = data?.id;
         if (subId) {
@@ -133,6 +133,17 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
           const sub = await getSubscription(subId);
           if (sub.data?.data.attributes.status === 'active' || sub.data?.data.attributes.status === 'on_trial') {
             await updateSubscription(userId, planName);
+            // Guardar el ID de suscripción para poder cancelarla después
+            await pool.query(
+              `UPDATE users
+               SET preferences = jsonb_set(
+                 COALESCE(preferences, '{}')::jsonb,
+                 '{ls_subscription_id}',
+                 to_jsonb($2::text)
+               ), updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [userId, subId]
+            );
           }
         }
       } else {
@@ -141,7 +152,83 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
     }
   }
 
+  // Suscripción expirada definitivamente → bajar a free
+  if (eventName === 'subscription_expired') {
+    const subId = data?.id as string | undefined;
+    if (subId) {
+      const userResult = await pool.query(
+        `SELECT id FROM users WHERE preferences->>'ls_subscription_id' = $1`,
+        [subId]
+      );
+      if (userResult.rows.length > 0) {
+        const userId: string = userResult.rows[0].id.toString();
+        await updateSubscription(userId, 'free');
+        await pool.query(
+          `UPDATE users
+           SET preferences = preferences - 'ls_subscription_id'
+                                        - 'ls_subscription_ends_at'
+                                        - 'subscription_status',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [userId]
+        );
+      }
+    }
+  }
+
   res.json({ received: true });
 });
 
+// DELETE /api/payments/subscription
+// Cancela al final del período: el usuario conserva su plan hasta ends_at.
+// El webhook subscription_expired se encarga de bajar a free cuando vence.
+export const cancelSubscriptionHandler = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) throw createError('Authentication required', HTTP_STATUS.UNAUTHORIZED);
+
+  const userResult = await pool.query(
+    `SELECT preferences FROM users WHERE id = $1`,
+    [userId]
+  );
+  if (userResult.rows.length === 0) throw createError('User not found', HTTP_STATUS.NOT_FOUND);
+
+  const prefs = (userResult.rows[0].preferences ?? {}) as Record<string, unknown>;
+  const subId = prefs.ls_subscription_id as string | undefined;
+
+  let endsAt: string | null = null;
+
+  if (subId) {
+    getLS();
+    const result = await lsCancelSubscription(subId);
+    if (result.error) {
+      throw createError(
+        result.error.message ?? 'Failed to cancel subscription with Lemon Squeezy',
+        HTTP_STATUS.INTERNAL_SERVER_ERROR
+      );
+    }
+    // LS devuelve ends_at con la fecha real de expiración del período actual
+    endsAt = (result.data?.data.attributes.ends_at as string | null | undefined) ?? null;
+  }
+
+  // Marcar como cancelación pendiente sin bajar el plan todavía
+  await pool.query(
+    `UPDATE users
+     SET preferences = preferences
+       || jsonb_build_object(
+            'subscription_status', 'pending_cancellation',
+            'ls_subscription_ends_at', $2::text
+          ),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [userId, endsAt ?? '']
+  );
+
+  const response: ApiResponse = {
+    success: true,
+    message: 'Subscription will be cancelled at the end of the current billing period',
+    data: { endsAt },
+  };
+
+  res.status(HTTP_STATUS.OK).json(response);
+});
 

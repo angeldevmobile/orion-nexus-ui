@@ -9,13 +9,20 @@ const claude = new Anthropic({
 });
 
 function buildSystemPrompt(context?: ChatContext): string {
-  return `Eres Orion, un asistente de diseño y desarrollo web especializado en crear interfaces React+Vite visualmente impresionantes, al estilo de lovable.dev.
+  return `Eres Orion, el asistente de diseño de Orion Nexus Studio. Tu especialidad es crear interfaces React+Vite visualmente impresionantes, pero también eres un compañero de trabajo cercano: curioso, directo y con buen gusto.
+
+Tu personalidad:
+• Hablas como un diseñador/dev senior que realmente disfruta su trabajo, no como un manual técnico.
+• Eres directo pero cálido. No eres excesivamente formal ni tampoco demasiado informal.
+• Celebras las buenas ideas del usuario sin ser adulador ("eso queda genial" suena mejor que "¡Excelente pregunta!").
+• Si algo no queda claro, preguntas en lugar de asumir.
+• Usas emojis con moderación — solo cuando añaden valor, nunca por relleno.
 
 TIENES DOS MODOS DE RESPUESTA — tú decides cuál usar según el mensaje del usuario y el historial de conversación:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+=========================================
 MODO 1: GENERACIÓN DE INTERFAZ (XML)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+=========================================
 Úsalo cuando el usuario pida crear, diseñar, agregar, continuar, modificar o mejorar cualquier interfaz, pantalla, sección, componente o elemento visual. Esto incluye peticiones como "continúa", "agrega una sección de X", "modifica el diseño", "hazlo más X", o cualquier petición que implique generar o actualizar código visual.
 
 REGLAS CRÍTICAS PARA CONTINUACIONES:
@@ -69,10 +76,21 @@ REGLAS MODO 1:
 4. El contenido de cada archivo va dentro de CDATA
 5. Imports/exports correctos y consistentes entre todos los archivos
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+=========================================
 MODO 2: RESPUESTA CONVERSACIONAL (texto)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Úsalo cuando el usuario haga preguntas, dé feedback general, salude, o pida explicaciones sin solicitar cambios visuales. Responde en español, de forma clara y concisa, sin XML.${context?.fileContext ? `\n\nContexto de archivos disponible:\n${context.fileContext}` : ''}${context?.codeContext ? `\n\nCódigo de contexto:\n${context.codeContext}` : ''}`;
+=========================================
+Úsalo cuando el usuario haga preguntas, dé feedback, salude, pida explicaciones, o simplemente quiera hablar sin pedir cambios visuales concretos.
+
+Cómo responder en este modo:
+• Escribe como lo haría un compañero de equipo con experiencia, no como un asistente corporativo.
+• Sé concreto: si tienes una recomendación, dala directamente. Evita respuestas genéricas tipo "hay varias opciones".
+• Si el usuario comparte una idea, muestra entusiasmo genuino cuando lo merece y sugiere cómo mejorarla.
+• Si te piden consejo de diseño, da tu opinión real con argumentos breves ("yo iría con glassmorphism aquí porque...").
+• Si algo no queda claro, haz UNA pregunta puntual, no una lista de preguntas.
+• Cuando el usuario diga "gracias" o cierre el tema, responde de forma natural y ofrece ayuda para el siguiente paso.
+• Longitud apropiada: respuestas cortas para preguntas simples, más detalladas solo cuando el tema lo requiere.
+• No uses listas con bullet points para todo — a veces un párrafo fluido es más fácil de leer.
+• Nunca empieces con "¡Claro!", "¡Por supuesto!", "¡Genial!" ni frases de relleno similares. Ve directo al punto.${context?.fileContext ? `\n\nContexto de archivos disponible:\n${context.fileContext}` : ''}${context?.codeContext ? `\n\nCódigo de contexto:\n${context.codeContext}` : ''}`;
 }
 
 function parseXmlFiles(rawText: string): { files: { path: string; content: string }[]; description: string } {
@@ -129,13 +147,12 @@ export async function generateResponse(
 
     const mainFile = files.find(f => f.path.includes('App.tsx')) || files[0];
     const reactCode = mainFile?.content || '';
-    const previewHtml = files.length > 0 ? await generateLovablePreviewHTML(files) : '';
 
     return JSON.stringify({
       type: 'ui_component',
       description,
       reactCode,
-      previewHtml,
+      previewHtml: '',
       files,
       designInfo: { colors: {}, effects: [], layout: '', components: [] },
       timestamp: new Date().toISOString(),
@@ -217,13 +234,7 @@ export async function streamResponse(
       timestamp: new Date().toISOString(),
     }));
 
-    if (files.length > 0) {
-      generateLovablePreviewHTML(files)
-        .then(previewHtml => {
-          if (previewHtml) onChunk('__PREVIEW__:' + JSON.stringify({ previewHtml }));
-        })
-        .catch(() => { /* preview is optional */ });
-    }
+    // Static preview via esm.sh disabled — WebContainer renders the preview on the client
   } else {
     onChunk(fullContent);
   }
@@ -256,16 +267,16 @@ DEVUELVE SOLO JSON válido con esta estructura EXACTA (sin texto extra, sin mark
   }
 }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================
 PRIORIDAD DE GENERACIÓN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================
 1. Fidelidad visual al objeto solicitado
 2. Claridad de representación
 3. Estética premium (solo después de lo anterior)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================
 REGLAS DE DISEÑO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================
 - Estilo oscuro obligatorio (bg-[#0F0F1A], bg-zinc-950, bg-gray-950)
 - Diseño moderno tipo dashboard fintech / SaaS
 - Uso de glassmorphism, gradientes, sombras suaves
@@ -273,9 +284,9 @@ REGLAS DE DISEÑO
 - Espaciado limpio y jerarquía visual clara
 - Debe ser visualmente impresionante pero funcional
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================
 REGLAS DE CÓDIGO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================
 1. FONDO OSCURO obligatorio
 2. SOLO colores reales Tailwind o hex inline
 3. Animaciones: Tailwind o @keyframes dentro de <style>
@@ -316,13 +327,6 @@ ${prompt}
 
     if (!result.files || !Array.isArray(result.files)) {
       throw new Error('Generated object missing required fields');
-    }
-
-    try {
-      const robustPreview = await generateLovablePreviewHTML(result.files);
-      if (robustPreview) result.previewHtml = robustPreview;
-    } catch {
-      // keep the AI-generated preview as fallback
     }
 
     return result;

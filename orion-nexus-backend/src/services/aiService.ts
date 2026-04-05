@@ -5,13 +5,13 @@
  * continue to work without any changes in controllers or routes.
  *
  * Sub-modules:
- *   uiGenerationService  → generateResponse, streamResponse, generateReactComponent
- *   conversationService  → generateCode, explainCode, optimizeCode, reviewCode,
+ *   uiGenerationService  => generateResponse, streamResponse, generateReactComponent
+ *   conversationService  => generateCode, explainCode, optimizeCode, reviewCode,
  *                          generateTests, generateProjectStructure, generateFullProject,
  *                          createProjectFiles
- *   previewService       → generateLovablePreviewHTML (used internally by the above)
- *   promptCache          → in-memory prompt cache (TTL 1 h)
- *   aiQueue              → p-limit concurrency queue
+ *   previewService       => generateLovablePreviewHTML (used internally by the above)
+ *   promptCache          => in-memory prompt cache (TTL 1 h)
+ *   aiQueue              => p-limit concurrency queue
  */
 
 import {
