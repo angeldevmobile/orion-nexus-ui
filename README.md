@@ -1,6 +1,6 @@
 # Orion Nexus Studio
 
-AI-powered web IDE that turns natural language prompts into live React applications — built on Claude, GPT-4o, Monaco Editor, and a browser-native virtual filesystem.
+AI-powered web IDE that turns natural language prompts into live React applications — built on Claude (Anthropic), Monaco Editor, WebContainers, and a browser-native virtual filesystem.
 
 ---
 
@@ -25,15 +25,16 @@ AI-powered web IDE that turns natural language prompts into live React applicati
 
 ## Overview
 
-Orion Nexus Studio is a full-stack AI development platform. Describe what you want in plain Spanish — get back a live preview, editable code, and a complete file structure in seconds.
+Orion Nexus Studio is a full-stack AI development platform. Describe what you want in plain Spanish — get back a live Vite preview, editable code, and a complete file structure in seconds.
 
 **Core capabilities:**
-- Prompt → React component → live preview in one click
+- Prompt → React project → live Vite preview powered by WebContainers
 - SSE streaming: see the AI generating code token by token in real time
 - Full Monaco Editor with syntax highlighting, tabs, and file explorer
-- Browser-based project execution via WebContainer API
+- Browser-based project execution via WebContainer API (same architecture as Lovable)
 - Persistent virtual filesystem (IndexedDB-backed via LightningFS)
 - GitHub OAuth + JWT authentication
+- Auto-fix: Vite errors are automatically detected and sent back to the AI for correction
 
 ---
 
@@ -49,12 +50,17 @@ Orion Nexus Studio is a full-stack AI development platform. Describe what you wa
 │    │                              │                            │  │
 │    │        SSE stream (token by token)                        │  │
 │    │              │                                            │  │
-│    │    Buffer chunks → when [DONE]:                           │  │
-│    │      parse JSON → { type, files, previewHtml, reactCode } │  │
+│    │    Buffer chunks → when __ENRICHED__:                     │  │
+│    │      parse XML → { files[], reactCode, description }      │  │
 │    │                                                           │  │
-│    ├── Chat panel: show design card (colors, effects, layout)  │  │
-│    ├── Preview tab: previewHtml in iframe                      │  │
+│    ├── Chat panel: design card (description)                   │  │
+│    ├── Preview tab: WebContainer → Vite dev server → iframe    │  │
 │    └── Code tab: reactCode in SyntaxHighlighter                │  │
+│                                                                   │
+│  WebContainer (shared between AIChat + Editor)                    │
+│    ├── Boot → write files → npm install → vite dev              │  │
+│    ├── HMR: subsequent AI generations hot-update files only      │  │
+│    └── Auto-fix: Vite errors → AI correction → hot-update       │  │
 │                                                                   │
 │  Editor.tsx                                                       │
 │    FileExplorer ─► FileManager (LightningFS) ─► MonacoEditor     │
@@ -68,15 +74,11 @@ Orion Nexus Studio is a full-stack AI development platform. Describe what you wa
 │  POST /api/ai/chat/stream  → SSE streaming (token by token)      │
 │  POST /api/ai/generate-full-project → multi-file project         │
 │                                                                   │
-│  aiService.generateResponse()                                     │
-│    ├── UI request detected → GPT-4o (JSON mode)                  │
-│    │     returns: { type, files, reactCode, previewHtml, ... }   │
-│    └── Conversational → Claude 3 Haiku                           │
+│  streamResponse()                                                 │
+│    ├── UI request detected → Claude (XML response)               │
+│    │     parses XML → enriches with __ENRICHED__ SSE event       │
+│    └── Conversational → Claude                                   │
 │          returns: plain text                                      │
-│                                                                   │
-│  aiService.streamResponse()                                       │
-│    ├── UI request → GPT-4o streaming → SSE chunks                │
-│    └── Chat → Claude streaming → SSE chunks                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -104,8 +106,7 @@ Orion Nexus Studio is a full-stack AI development platform. Describe what you wa
 | Framework | Express 5 + TypeScript |
 | Database | PostgreSQL |
 | Authentication | Passport.js + JWT |
-| AI (UI generation) | OpenAI GPT-4o (JSON mode + streaming) |
-| AI (chat) | Anthropic Claude 3 Haiku (streaming) |
+| AI | Anthropic Claude (streaming + XML responses) |
 | Security | Helmet + bcryptjs + rate limiting |
 | Real-time | Socket.IO |
 | Email | Nodemailer |
@@ -118,7 +119,7 @@ Orion Nexus Studio is a full-stack AI development platform. Describe what you wa
 orion-nexus-studio/
 ├── src/
 │   ├── pages/
-│   │   ├── AIChat.tsx          ← Main AI builder UI (chat + preview + code)
+│   │   ├── AIChat.tsx          ← Main AI builder UI (chat + Vite preview + code)
 │   │   ├── Editor.tsx          ← Monaco editor + file explorer + WebContainer
 │   │   ├── Auth.tsx            ← Login / Register / GitHub OAuth
 │   │   ├── Dashboard.tsx
@@ -129,11 +130,11 @@ orion-nexus-studio/
 │   │   └── ApiService.tsx      ← HTTP client with JWT injection
 │   │
 │   ├── hooks/
-│   │   └── useChat.ts          ← Zustand store: messages, streaming state, send
+│   │   └── useChat.ts          ← Zustand store: messages, WC lifecycle, send
 │   │
 │   ├── contexts/
 │   │   ├── ChatContextType.tsx ← ChatContext type definition
-│   │   ├── ChatContext.tsx     ← ChatProvider (streaming + JSON parsing)
+│   │   ├── ChatContext.tsx     ← ChatProvider (streaming + XML parsing)
 │   │   ├── ProjectContext.tsx  ← Active file, filesystem events
 │   │   └── AuthProvider.tsx
 │   │
@@ -143,11 +144,14 @@ orion-nexus-studio/
 │       ├── FileExplorer.tsx
 │       ├── templates.ts        ← React, Next, Vue project templates
 │       └── runtime/
-│           └── orionContainer.ts ← WebContainer integration
+│           └── orionContainer.ts ← WebContainer: boot, install, runDevServer, HMR
 │
 └── orion-nexus-backend/src/
     ├── routes/ai.ts            ← /chat, /chat/stream, /generate-*
-    ├── services/aiService.ts   ← generateResponse() + streamResponse()
+    ├── services/
+    │   ├── aiService.ts        ← streamResponse() + generateResponse()
+    │   ├── uiGenerationService.ts ← XML parsing + file extraction
+    │   └── conversationService.ts ← Chat history management
     └── ...
 ```
 
@@ -155,78 +159,80 @@ orion-nexus-studio/
 
 ## Core Loop
 
-This is the main flow — prompt to live preview:
+This is the main flow — prompt to live Vite preview:
 
 ```
 1. User types: "Crea un dashboard con gráficas de ventas"
    │
 2. useChat.sendMessage(prompt)
    ├── Adds user message to local state
-   ├── Calls AiService.streamMessage(prompt, history)
+   ├── Injects existing project files as context (if any)
+   └── Calls AiService.streamMessage(prompt, history)
    │
 3. AiService → POST /api/ai/chat/stream (SSE)
    │   Body: { message, chatHistory, context }
    │
-4. Backend detects: "dashboard" → UI generation path
-   │   GPT-4o with JSON system prompt → streaming response
+4. Backend: Claude receives prompt + XML system prompt
+   │   Streams XML response token by token
    │   Each token → SSE event: data: {"chunk":"..."}
    │
-5. Frontend receives chunks → buffers full response
-   │   Shows streaming text in code tab (real-time typing effect)
+5. Frontend buffers chunks in real time
+   │   GenerationProgress UI shows elapsed time + steps
    │
-6. Stream ends → data: [DONE]
-   │   JSON.parse(fullResponse) →
+6. Stream hits __ENRICHED__ sentinel:
    │   {
-   │     type: "ui_component",
-   │     reactCode: "export default function Dashboard() {...}",
-   │     previewHtml: "<!DOCTYPE html>...",   ← complete HTML with Tailwind CDN
-   │     designInfo: { colors, effects, layout, components },
-   │     files: [{ path, content }, ...]
+   │     files: [{ path, content }, ...],   ← all project files
+   │     reactCode: "function App() {...}",  ← App.tsx content
+   │     description: "Dashboard con...",    ← shown in chat
    │   }
    │
-7. UI updates:
-   ├── Chat panel: design card (palette, effects, layout, components)
-   ├── Preview tab: <iframe srcDoc={previewHtml} />
-   └── Code tab: <SyntaxHighlighter>{reactCode}</SyntaxHighlighter>
+7. Frontend:
+   ├── Writes all files to LightningFS (virtual filesystem)
+   ├── Chat panel: shows description card
+   ├── Code tab: shows reactCode in SyntaxHighlighter
+   └── Boots WebContainer (or hot-updates if already running):
+         boot → npm install → vite dev → iframe preview URL
    │
-8. fileManager.writeFile("/src/App.tsx", reactCode)
-   └── Toast: "Código guardado → Abrir en Editor"
+8. WebContainer ready → previewUrl set → Vite iframe fades in
+   └── HMR active: next AI generation updates files without restart
 ```
 
 ---
 
 ## AI Response Pipeline
 
-### UI Component Response (GPT-4o)
+### UI Generation (Claude — XML mode)
 
-When the user asks for an interface (login, dashboard, form, etc.), GPT-4o returns structured JSON:
+When the user asks for an interface, Claude responds in structured XML:
 
-```json
-{
-  "type": "ui_component",
-  "designInfo": {
-    "colors": { "primary": "#06B6D4", "background": "#0F172A" },
-    "effects": ["glassmorphism", "gradient borders", "hover animations"],
-    "layout": "centered card with flexbox",
-    "components": ["Card", "Button", "Input", "Badge"]
-  },
-  "files": [
-    { "path": "src/App.tsx", "content": "..." },
-    { "path": "src/components/Dashboard.tsx", "content": "..." }
-  ],
-  "reactCode": "export default function Dashboard() { ... }",
-  "previewHtml": "<!DOCTYPE html><html>...<script src='cdn/tailwind'></script>...</html>",
-  "timestamp": "2026-03-29T..."
-}
+```xml
+<project>
+  <type>ui_component</type>
+  <description>Dashboard de ventas con gráficas y métricas</description>
+  <designInfo>
+    <colors primary="#06B6D4" secondary="#8B5CF6" background="#0F0F1A"/>
+    <effects>Gradients,Glassmorphism,Hover animations</effects>
+    <layout>Grid/Flexbox moderno</layout>
+    <components>Navbar,Card,Chart,Button</components>
+  </designInfo>
+  <files>
+    <file path="package.json"><![CDATA[...]]></file>
+    <file path="index.html"><![CDATA[...]]></file>
+    <file path="src/main.tsx"><![CDATA[...]]></file>
+    <file path="src/App.tsx"><![CDATA[...]]></file>
+    <file path="src/components/Dashboard.tsx"><![CDATA[...]]></file>
+  </files>
+</project>
 ```
 
-**`reactCode`**: The primary component (App.tsx), ready for the editor.
-**`previewHtml`**: Complete self-contained HTML with Tailwind CDN — displayed in `<iframe srcDoc>`, no bundler needed.
-**`files[]`**: All components split into separate files — saved to the virtual filesystem for the Monaco editor.
+The backend parses this XML and emits a `__ENRICHED__` SSE event with the extracted files. The frontend writes them to the virtual FS and boots WebContainer — no CDN, no bundler workarounds, just real Vite.
+
+**`files[]`**: Complete multi-file project — all components in separate files, saved to LightningFS and loaded in the Monaco editor.
+**`reactCode`**: App.tsx content — shown in the Code tab with syntax highlighting.
 
 ### Conversational Response (Claude)
 
-For non-UI questions, Claude 3 Haiku returns plain text (markdown). Displayed directly in the chat panel with `react-markdown`.
+For non-UI questions, Claude returns plain text (markdown). Displayed directly in the chat panel with `react-markdown`.
 
 ---
 
@@ -239,10 +245,10 @@ POST /api/ai/chat/stream
 Body: { message, chatHistory, context }
 
 Response: text/event-stream
-  data: {"chunk":"export"}
-  data: {"chunk":" default"}
-  data: {"chunk":" function"}
+  data: {"chunk":"<project>"}
+  data: {"chunk":"<type>ui_component</type>"}
   ...
+  data: {"type":"__ENRICHED__","data":{"files":[...],"reactCode":"...","description":"..."}}
   data: [DONE]
 ```
 
@@ -265,8 +271,12 @@ while (true) {
     if (!line.startsWith('data: ')) continue;
     const payload = line.slice(6).trim();
     if (payload === '[DONE]') return;
-    const { chunk } = JSON.parse(payload);
-    onChunk(chunk);  // updates streaming state in real time
+    const parsed = JSON.parse(payload);
+    if (parsed.type === '__ENRICHED__') {
+      onEnriched(parsed.data);  // triggers WebContainer boot
+    } else {
+      onChunk(parsed.chunk);    // updates streaming text in real time
+    }
   }
 }
 ```
@@ -294,13 +304,18 @@ Adapters:
   memfs        → in-memory, ephemeral, fast
 ```
 
-After AI generates `files[]`, each file is written to the virtual FS:
+After AI generates `files[]`, each file is written to both LightningFS and the WebContainer:
 ```typescript
-for (const file of parsed.files) {
+// 1. Write to virtual FS (Monaco editor reads from here)
+for (const file of enriched.files) {
   await fileManager.writeFile(file.path, file.content);
 }
+
+// 2. Boot WebContainer (or hot-update if Vite is already running)
+await bootWebContainer(enriched.files);
 ```
-The Monaco editor then reads from the same FS — giving a consistent view.
+
+The Monaco editor and the WebContainer stay in sync — both read/write from LightningFS.
 
 ---
 
@@ -314,12 +329,17 @@ Primary store for the AI builder page:
 {
   messages: Message[]           // full conversation
   sending: boolean              // request in flight
-  streamingContent: string      // live SSE buffer (shown in code tab)
-  generatedCode: string         // reactCode from last AI response
-  previewHtml: string           // previewHtml for iframe
-  uiData: UIComponentData | null // full parsed JSON
+  streamingContent: string      // live SSE buffer (shown during generation)
+  generatedCode: string         // App.tsx content from last AI response
+  previewUrl: string            // Vite dev server URL (served by WebContainer)
+  wcStatus: WcStatus            // 'idle' | 'booting' | 'installing' | 'starting' | 'ready' | 'error'
+  wcLogs: string[]              // WebContainer terminal output
+  wcError: string               // last Vite error (triggers auto-fix)
+  uiData: UIComponentData | null // full parsed AI response
 
-  sendMessage(prompt, context?)  // triggers SSE stream + fallback
+  sendMessage(prompt, context?)  // triggers SSE stream + WC boot
+  sendFullProjectRequest(prompt) // generates complete multi-file project
+  autoFixError(error)            // sends Vite error to AI for automatic correction
   clearChat()
 }
 ```
@@ -439,13 +459,8 @@ DB_PORT=5432
 JWT_SECRET=your_jwt_secret
 JWT_EXPIRES_IN=7d
 
-# AI Models
-OPENAI_API_KEY=sk-proj-...
-OPENAI_MODEL_MAIN=gpt-4o
-OPENAI_MODEL_FAST=gpt-4o-mini
+# AI
 ANTHROPIC_API_KEY=sk-ant-api03-...
-CLAUDE_MODEL_MAIN=claude-3-5-sonnet-20241022
-CLAUDE_MODEL_FAST=claude-3-haiku-20240307
 
 # GitHub OAuth
 GITHUB_CLIENT_ID=your_github_client_id
@@ -461,8 +476,8 @@ GITHUB_CALLBACK_URL=http://localhost:5000/api/auth/github/callback
 
 - Node.js 18+
 - PostgreSQL 14+
-- OpenAI API key (for UI generation)
-- Anthropic API key (for conversational chat)
+- Anthropic API key
+- Chromium-based browser (required for WebContainer API — Firefox not supported)
 
 ### Install
 
@@ -498,6 +513,8 @@ npm run dev
 ```
 
 Open [http://localhost:8080](http://localhost:8080)
+
+> **Note:** WebContainers require cross-origin isolation headers (`COOP` + `COEP`). These are configured automatically by the Vite dev server.
 
 ---
 
