@@ -1,6 +1,6 @@
-﻿# Orion Nexus Studio
+# Orion Nexus Studio
 
-AI-powered web IDE that turns natural language prompts into live React applications â€” built on Claude (Anthropic), Monaco Editor, WebContainers, and a browser-native virtual filesystem.
+AI-powered web IDE that turns natural language prompts into live React applications - built on Claude (Anthropic), Monaco Editor, WebContainers, and a browser-native virtual filesystem.
 
 ---
 
@@ -16,10 +16,10 @@ AI-powered web IDE that turns natural language prompts into live React applicati
 
 ## Overview
 
-Orion Nexus Studio is a full-stack AI development platform. Describe what you want in plain language â€” get back a live Vite preview, editable code, and a complete file structure in seconds.
+Orion Nexus Studio is a full-stack AI development platform. Describe what you want in plain language and get back a live Vite preview, editable code, and a complete file structure in seconds.
 
 **Core capabilities:**
-- Prompt â†’ React project â†’ live Vite preview powered by WebContainers
+- Prompt -> React project -> live Vite preview powered by WebContainers
 - SSE streaming: see the AI generating code token by token in real time
 - Full Monaco Editor with syntax highlighting, tabs, and file explorer
 - Browser-based project execution via WebContainer API
@@ -61,34 +61,34 @@ Orion Nexus Studio is a full-stack AI development platform. Describe what you wa
 
 ```
 orion-nexus-studio/
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ pages/
-â”‚   â”‚   â”œâ”€â”€ AIChat.tsx          â† Main AI builder UI
-â”‚   â”‚   â”œâ”€â”€ Editor.tsx          â† Monaco editor + file explorer
-â”‚   â”‚   â”œâ”€â”€ Auth.tsx            â† Login / Register / GitHub OAuth
-â”‚   â”‚   â””â”€â”€ ...
-â”‚   â”œâ”€â”€ service/
-â”‚   â”‚   â”œâ”€â”€ AiService.ts        â† AI streaming client
-â”‚   â”‚   â””â”€â”€ ApiService.tsx      â† HTTP client with JWT injection
-â”‚   â”œâ”€â”€ hooks/
-â”‚   â”‚   â””â”€â”€ useChat.ts          â† Zustand store
-â”‚   â”œâ”€â”€ contexts/
-â”‚   â”‚   â”œâ”€â”€ ChatContext.tsx
-â”‚   â”‚   â”œâ”€â”€ ProjectContext.tsx
-â”‚   â”‚   â””â”€â”€ AuthProvider.tsx
-â”‚   â””â”€â”€ editor/
-â”‚       â”œâ”€â”€ FileManager.ts
-â”‚       â”œâ”€â”€ MonacoEditor.tsx
-â”‚       â”œâ”€â”€ FileExplorer.tsx
-â”‚       â””â”€â”€ runtime/
-â”‚           â””â”€â”€ orionContainer.ts â† WebContainer lifecycle
-â”‚
-â””â”€â”€ orion-nexus-backend/src/
-    â”œâ”€â”€ routes/
-    â”œâ”€â”€ controllers/
-    â”œâ”€â”€ services/
-    â”œâ”€â”€ middleware/
-    â””â”€â”€ config/
+├── src/
+│   ├── pages/
+│   │   ├── AIChat.tsx          <- Main AI builder UI
+│   │   ├── Editor.tsx          <- Monaco editor + file explorer
+│   │   ├── Auth.tsx            <- Login / Register / GitHub OAuth
+│   │   └── ...
+│   ├── service/
+│   │   ├── AiService.ts        <- AI streaming client
+│   │   └── ApiService.tsx      <- HTTP client with JWT injection
+│   ├── hooks/
+│   │   └── useChat.ts          <- Zustand store
+│   ├── contexts/
+│   │   ├── ChatContext.tsx
+│   │   ├── ProjectContext.tsx
+│   │   └── AuthProvider.tsx
+│   └── editor/
+│       ├── FileManager.ts
+│       ├── MonacoEditor.tsx
+│       ├── FileExplorer.tsx
+│       └── runtime/
+│           └── orionContainer.ts <- WebContainer lifecycle
+│
+└── orion-nexus-backend/src/
+    ├── routes/
+    ├── controllers/
+    ├── services/
+    ├── middleware/
+    └── config/
 ```
 
 ---
@@ -100,7 +100,7 @@ orion-nexus-studio/
 - Node.js 18+
 - PostgreSQL 14+
 - Anthropic API key
-- Chromium-based browser (required for WebContainer API â€” Firefox not supported)
+- Chromium-based browser (required for WebContainer API - Firefox not supported)
 
 ### Install
 
@@ -128,37 +128,31 @@ See `.env.example` files for the required variables.
 
 ```bash
 psql -U postgres -c "CREATE DATABASE \"orion-nexus\";"
-# Schema auto-migrates on first server start
+cd orion-nexus-backend
+node migrate.js
 ```
 
 ### Run
 
 ```bash
-# Terminal 1 â€” Backend (port 5000)
+# Backend (port 5000)
 cd orion-nexus-backend
 npm run dev
 
-# Terminal 2 â€” Frontend (port 8080)
+# Frontend (port 5173)
 npm run dev
 ```
-
-Open [http://localhost:8080](http://localhost:8080)
-
-> **Note:** WebContainers require cross-origin isolation headers (`COOP` + `COEP`). These are configured automatically by the Vite dev server.
 
 ---
 
 ## Security
 
-| Layer | Mechanism |
+| Practice | Implementation |
 |---|---|
-| HTTP Headers | Helmet.js |
-| CORS | Explicit origin whitelist |
-| Authentication | JWT + bcrypt |
-| Rate limiting | Per-route limiters |
-| Input validation | express-validator |
-| SQL injection | Parameterized queries |
-| File uploads | Type + size restrictions |
-
-**Never commit `.env` files.** All secrets must be set via environment variables only.
-
+| Authentication | JWT (short-lived) + HttpOnly cookies |
+| Password storage | bcryptjs (salt rounds: 12) |
+| Rate limiting | express-rate-limit per route |
+| Input validation | express-validator on all endpoints |
+| Headers | Helmet.js |
+| CORS | Allowlist-based origin check |
+| Secrets | Environment variables only - never committed |
