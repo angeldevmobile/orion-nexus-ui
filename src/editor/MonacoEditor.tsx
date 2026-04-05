@@ -10,6 +10,7 @@ interface MonacoEditorProps {
   fontSize?: number;
   editorTheme?: string;
   autocomplete?: boolean;
+  readOnly?: boolean;
 }
 
 const THEME_MAP: Record<string, string> = {
@@ -26,6 +27,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
   fontSize = 14,
   editorTheme = "VS Code Dark",
   autocomplete = true,
+  readOnly = false,
 }) => {
   const detectLanguage = (path: string) => {
     if (path.endsWith(".tsx") || path.endsWith(".jsx")) return "typescript";
@@ -119,9 +121,10 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
         scrollBeyondLastLine: false,
         wordWrap: "on",
         renderValidationDecorations: "off",
-        quickSuggestions: autocomplete,
-        suggestOnTriggerCharacters: autocomplete,
-        wordBasedSuggestions: autocomplete ? "currentDocument" : "off",
+        readOnly,
+        quickSuggestions: autocomplete && !readOnly,
+        suggestOnTriggerCharacters: autocomplete && !readOnly,
+        wordBasedSuggestions: autocomplete && !readOnly ? "currentDocument" : "off",
       }}
     />
   );

@@ -67,6 +67,20 @@ export const postLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Presence heartbeat rate limiting — high ceiling, two endpoints polled per tick
+export const presenceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 600, // ~2 req/30s = 60/min = 900/15min; 600 gives comfortable headroom
+  message: {
+    success: false,
+    message: 'Too many presence requests, please try again later.',
+    error: 'Presence rate limit exceeded'
+  } as ApiResponse,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipFailedRequests: true,
+});
+
 // Create custom rate limiter
 export const createRateLimiter = (windowMs: number, max: number, message: string) => {
   return rateLimit({

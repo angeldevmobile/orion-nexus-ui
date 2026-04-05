@@ -180,6 +180,9 @@ interface CodeChangeData {
 interface JoinProjectData {
   projectId: string;
   userId: string;
+  username?: string;
+  email?: string;
+  avatar?: string;
 }
 
 // Agregar interface para cursor position
@@ -198,17 +201,58 @@ interface CursorChangeData {
   timestamp?: number;
 }
 
+// ── In-memory presence (WebSocket-based, no DB polling) ───────────────────────
+const PRESENCE_COLORS = [
+  '#00D9FF', '#FF6B6B', '#51CF66', '#FCC419',
+  '#845EF7', '#FF922B', '#20C997', '#F06595',
+];
+
+interface PresenceEntry {
+  user_id: number;
+  username: string;
+  email: string;
+  avatar?: string;
+  color: string;
+}
+
+// socketId → { projectId, ...user }
+const socketPresence = new Map<string, { projectId: string } & PresenceEntry>();
+
+function getPresenceForRoom(projectId: string): PresenceEntry[] {
+  const result: PresenceEntry[] = [];
+  for (const entry of socketPresence.values()) {
+    if (entry.projectId === projectId) {
+      const { projectId: _pid, ...user } = entry;
+      result.push(user);
+    }
+  }
+  return result;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Socket.IO event handlers
 io.on('connection', (socket: Socket) => {
   console.log(` User connected: ${socket.id}`);
 
-  // Join project room
+  // Join project room + register presence
   socket.on('join-project', (data: JoinProjectData) => {
     socket.join(data.projectId);
-    socket.to(data.projectId).emit('user-joined', {
-      userId: data.userId,
-      socketId: socket.id
+
+    const user_id = parseInt(data.userId, 10);
+    const colorIndex = user_id % PRESENCE_COLORS.length;
+    const color = PRESENCE_COLORS[colorIndex] ?? PRESENCE_COLORS[0];
+
+    socketPresence.set(socket.id, {
+      projectId: data.projectId,
+      user_id,
+      username: data.username ?? data.email ?? 'Anónimo',
+      email: data.email ?? '',
+      avatar: data.avatar,
+      color,
     });
+
+    // Broadcast updated list to ALL in room (including sender)
+    io.to(data.projectId).emit('presence-update', getPresenceForRoom(data.projectId));
     console.log(` User ${data.userId} joined project ${data.projectId}`);
   });
 
@@ -229,17 +273,21 @@ io.on('connection', (socket: Socket) => {
     });
   });
 
-  // Leave project room
+  // Leave project room + remove presence
   socket.on('leave-project', (data: JoinProjectData) => {
     socket.leave(data.projectId);
-    socket.to(data.projectId).emit('user-left', {
-      userId: data.userId,
-      socketId: socket.id
-    });
+    socketPresence.delete(socket.id);
+    io.to(data.projectId).emit('presence-update', getPresenceForRoom(data.projectId));
   });
 
-  // Handle disconnection
+  // Handle disconnection — clean up presence regardless of leave-project
   socket.on('disconnect', () => {
+    const entry = socketPresence.get(socket.id);
+    if (entry) {
+      const { projectId } = entry;
+      socketPresence.delete(socket.id);
+      io.to(projectId).emit('presence-update', getPresenceForRoom(projectId));
+    }
     console.log(` User disconnected: ${socket.id}`);
   });
 });

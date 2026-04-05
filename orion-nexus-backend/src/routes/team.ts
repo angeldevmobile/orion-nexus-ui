@@ -8,6 +8,7 @@ import {
   updatePresence,
 } from '../controllers/teamController';
 import { authenticateToken } from '../middleware/auth';
+import { presenceLimiter } from '../middleware/rateLimit';
 
 const router: Router = Router();
 
@@ -27,9 +28,9 @@ router.delete('/invites/:id', cancelInvite);
 router.delete('/members/:userId', removeMember);
 
 // GET  /api/team/presence/:projectId  — active editors
-router.get('/presence/:projectId', getPresence);
+router.get('/presence/:projectId', presenceLimiter, getPresence);
 
 // POST /api/team/presence/:projectId  — heartbeat
-router.post('/presence/:projectId', updatePresence);
+router.post('/presence/:projectId', presenceLimiter, updatePresence);
 
 export default router;

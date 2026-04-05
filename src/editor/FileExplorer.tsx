@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronDown, Folder, File } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FolderOpen, File, FileCode, FileJson, FileType, FileText, FileImage } from "lucide-react";
 
 export interface FileNode {
   name: string;
@@ -14,6 +14,18 @@ interface FileExplorerProps {
   onCreateFile?: (path: string) => void;
   onCreateFolder?: (path: string) => void;
   activeFile?: string;
+}
+
+function getFileIcon(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase();
+  if (["ts", "tsx"].includes(ext ?? "")) return <FileCode className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />;
+  if (["js", "jsx"].includes(ext ?? "")) return <FileCode className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />;
+  if (["json"].includes(ext ?? "")) return <FileJson className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />;
+  if (["css", "scss", "less"].includes(ext ?? "")) return <FileType className="w-3.5 h-3.5 text-pink-400 flex-shrink-0" />;
+  if (["html"].includes(ext ?? "")) return <FileText className="w-3.5 h-3.5 text-orange-300 flex-shrink-0" />;
+  if (["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"].includes(ext ?? "")) return <FileImage className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />;
+  if (["md", "txt"].includes(ext ?? "")) return <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />;
+  return <File className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -66,7 +78,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             )}
 
             {/* Icono de carpeta */}
-            <Folder className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+            {isExpanded
+              ? <FolderOpen className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+              : <Folder className="w-4 h-4 text-yellow-500/80 flex-shrink-0" />
+            }
 
             {/* Nombre */}
             <span className="text-sm truncate">{node.name}</span>
@@ -94,7 +109,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         `}
         style={{ paddingLeft: `${level * 12 + 24}px` }}
       >
-        <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        {getFileIcon(node.name)}
         <span className="text-sm truncate">{node.name}</span>
       </div>
     );
@@ -128,36 +143,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }, []);
 
   return (
-    <div className="h-full bg-[#1e1e1e] text-gray-200 overflow-auto">
-      {/* Header */}
-      <div className="sticky top-0 bg-[#1e1e1e] border-b border-gray-700 px-3 py-2 flex justify-between items-center">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-          Files
-        </span>
-        <div className="flex gap-1">
-          {onCreateFile && (
-            <button
-              onClick={() => onCreateFile("newfile.tsx")}
-              className="p-1 hover:bg-gray-700 rounded transition-colors"
-              title="Nuevo archivo"
-            >
-              <span className="text-xs">📄+</span>
-            </button>
-          )}
-          {onCreateFolder && (
-            <button
-              onClick={() => onCreateFolder("newfolder")}
-              className="p-1 hover:bg-gray-700 rounded transition-colors"
-              title="Nueva carpeta"
-            >
-              <span className="text-xs">📁+</span>
-            </button>
-          )}
-        </div>
-      </div>
-
+    <div className="h-full text-gray-200 overflow-auto">
       {/* Árbol de archivos */}
-      <div className="py-2">{sortedTree.map((node) => renderNode(node))}</div>
+      <div className="py-1">{sortedTree.map((node) => renderNode(node))}</div>
     </div>
   );
 };

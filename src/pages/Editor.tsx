@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,11 +7,14 @@ import {
 	Code2,
 	Save,
 	Download,
-	Settings2,
 	FileCode,
 	Sparkles,
 	Trash2,
 	FolderOpen,
+	FilePlus,
+	FolderPlus,
+	Monitor,
+	Terminal,
 } from "lucide-react";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { useState, useEffect, useRef } from "react";
@@ -40,7 +42,7 @@ import {
 	runDevServer,
 	updateFilesInContainer,
 } from "@/editor/runtime/orionContainer";
-import { apiService } from "@/service/ApiService";
+import { io as socketIO } from "socket.io-client";
 import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
 
@@ -78,35 +80,38 @@ export default function Editor() {
 	const editorAutocomplete =
 		prefs?.autocomplete !== undefined ? Boolean(prefs.autocomplete) : true;
 
-	// ── Presence ─────────────────────────────────────────────────────────────────
+	// ── Presence via Socket.IO (event-driven, no HTTP polling) ──────────────────
 	interface PresenceUser { user_id: number; username: string; email: string; avatar?: string; color: string }
 	const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
-	// Derive a stable project slug from the first file path
 	const presenceProjectId = useRef<string>(`editor-${user?.id ?? "anon"}`);
 
 	useEffect(() => {
 		if (!user || !token) return;
 		const projectId = presenceProjectId.current;
-		const headers: Record<string, string> = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
 
-		const sendHeartbeat = () => {
-			fetch(`http://localhost:5000/api/team/presence/${projectId}`, {
-				method: "POST",
-				headers,
-			}).catch(() => {/* silent */});
+		const socket = socketIO("http://localhost:5000", {
+			auth: { token },
+			transports: ["websocket"],
+		});
+
+		socket.on("connect", () => {
+			socket.emit("join-project", {
+				projectId,
+				userId: String(user.id),
+				username: user.username,
+				email: user.email,
+				avatar: user.avatar,
+			});
+		});
+
+		socket.on("presence-update", (users: PresenceUser[]) => {
+			setPresenceUsers(users);
+		});
+
+		return () => {
+			socket.emit("leave-project", { projectId, userId: String(user.id) });
+			socket.disconnect();
 		};
-
-		const fetchPresence = () => {
-			fetch(`http://localhost:5000/api/team/presence/${projectId}`, { headers })
-				.then((r) => r.json())
-				.then((d) => { if (d.success) setPresenceUsers(d.data || []); })
-				.catch(() => {/* silent */});
-		};
-
-		sendHeartbeat();
-		fetchPresence();
-		const interval = setInterval(() => { sendHeartbeat(); fetchPresence(); }, 10_000);
-		return () => clearInterval(interval);
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [user?.id, token]);
 
@@ -370,21 +375,35 @@ export default function Editor() {
 
 			{/* File Explorer */}
 			<div className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">
-				<div className="px-3 py-3 border-b border-border space-y-2">
+				<div className="px-3 py-2.5 border-b border-border">
 					<div className="flex items-center justify-between">
 						<h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
 							<FileCode className="w-3.5 h-3.5" />
 							Archivos
 						</h2>
-						<button
-							title="Cerrar proyecto"
-							onClick={handleNewProject}
-							className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-							<Trash2 className="w-3.5 h-3.5" />
-						</button>
+						<div className="flex items-center gap-0.5">
+							<button
+								title="Nuevo archivo"
+								onClick={() => handleCreateFile("nuevoArchivo.tsx")}
+								className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+								<FilePlus className="w-3.5 h-3.5" />
+							</button>
+							<button
+								title="Nueva carpeta"
+								onClick={() => handleCreateFolder("nuevaCarpeta")}
+								className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+								<FolderPlus className="w-3.5 h-3.5" />
+							</button>
+							<div className="w-px h-4 bg-border mx-0.5" />
+							<button
+								title="Cerrar proyecto"
+								onClick={handleNewProject}
+								className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+								<Trash2 className="w-3.5 h-3.5" />
+							</button>
+						</div>
 					</div>
-
-					</div>
+				</div>
 
 				<div className="flex-1 overflow-y-auto p-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
 					<FileExplorer
@@ -399,67 +418,89 @@ export default function Editor() {
 			{/* Editor area */}
 			<div className="flex-1 flex flex-col min-w-0">
 				{/* Top bar */}
-				<div className="flex-shrink-0 border-b border-border px-4 py-2.5 bg-card flex items-center justify-between">
-					<div className="flex items-center gap-3">
-						<Code2 className="w-4 h-4 text-primary" />
-						<span className="font-heading font-semibold text-sm">Editor</span>
+				<div className="flex-shrink-0 border-b border-border px-4 py-2 bg-card flex items-center justify-between gap-4">
+					{/* Left — file info */}
+					<div className="flex items-center gap-2 min-w-0 flex-1">
+						<Code2 className="w-4 h-4 text-primary flex-shrink-0" />
+						<span className="font-heading font-semibold text-sm flex-shrink-0">Editor</span>
 						{localActiveFile && (
-							<Badge variant="secondary" className="text-xs font-mono">
+							<Badge variant="secondary" className="text-xs font-mono truncate max-w-[160px]">
 								{localActiveFile}
 							</Badge>
 						)}
 					</div>
 
-					{/* ── Presence avatars ── */}
-					{presenceUsers.length > 0 && (
-						<div className="flex items-center gap-1.5 mr-2">
-							<span className="text-xs text-muted-foreground mr-1">Editando:</span>
-							<TooltipProvider delayDuration={150}>
-								<div className="flex -space-x-2">
-									{presenceUsers.slice(0, 6).map((pu) => (
-										<Tooltip key={pu.user_id}>
-											<TooltipTrigger asChild>
-												<div
-													className="relative w-7 h-7 rounded-full border-2 cursor-default"
-													style={{ borderColor: pu.color }}
-												>
-													<Avatar className="w-full h-full">
-														<AvatarImage src={pu.avatar} />
-														<AvatarFallback
-															className="text-[10px] font-bold"
-															style={{ background: pu.color + "33", color: pu.color }}
-														>
-															{(pu.username ?? pu.email ?? "?").slice(0, 2).toUpperCase()}
-														</AvatarFallback>
-													</Avatar>
-													{/* live pulse dot */}
-													<span
-														className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card animate-pulse"
-														style={{ background: pu.color }}
-													/>
-												</div>
-											</TooltipTrigger>
-											<TooltipContent side="bottom" className="text-xs px-2 py-1">
-												{pu.username ?? pu.email}
-												<span className="ml-1 opacity-60 capitalize">({pu.user_id === parseInt(String(user?.id ?? "0")) ? "tú" : "editor"})</span>
-											</TooltipContent>
-										</Tooltip>
-									))}
-									{presenceUsers.length > 6 && (
-										<div className="w-7 h-7 rounded-full border-2 border-border bg-secondary flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-											+{presenceUsers.length - 6}
-										</div>
-									)}
-								</div>
-							</TooltipProvider>
-						</div>
-					)}
+					{/* Center — tab switcher */}
+					<div className="flex items-center bg-muted rounded-md p-0.5 flex-shrink-0">
+						{([
+							{ value: "code", label: "Código", Icon: Code2 },
+							{ value: "preview", label: "Vista Previa", Icon: Monitor },
+							{ value: "console", label: "Consola", Icon: Terminal },
+						] as const).map(({ value, label, Icon }) => (
+							<button
+								key={value}
+								onClick={() => setActiveTab(value)}
+								className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+									activeTab === value
+										? "bg-background text-foreground shadow-sm"
+										: "text-muted-foreground hover:text-foreground"
+								}`}>
+								<Icon className="w-3 h-3" />
+								{label}
+							</button>
+						))}
+					</div>
 
-					<div className="flex items-center gap-2">
+					{/* Right — presence + actions */}
+					<div className="flex items-center gap-2 flex-1 justify-end">
+						{/* ── Presence avatars ── */}
+						{presenceUsers.length > 0 && (
+							<div className="flex items-center gap-1.5">
+								<span className="text-xs text-muted-foreground">Editando:</span>
+								<TooltipProvider delayDuration={150}>
+									<div className="flex -space-x-2">
+										{presenceUsers.slice(0, 6).map((pu) => (
+											<Tooltip key={pu.user_id}>
+												<TooltipTrigger asChild>
+													<div
+														className="relative w-7 h-7 rounded-full border-2 cursor-default"
+														style={{ borderColor: pu.color }}
+													>
+														<Avatar className="w-full h-full">
+															<AvatarImage src={pu.avatar} />
+															<AvatarFallback
+																className="text-[10px] font-bold"
+																style={{ background: pu.color + "33", color: pu.color }}
+															>
+																{(pu.username ?? pu.email ?? "?").slice(0, 2).toUpperCase()}
+															</AvatarFallback>
+														</Avatar>
+														<span
+															className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card animate-pulse"
+															style={{ background: pu.color }}
+														/>
+													</div>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" className="text-xs px-2 py-1">
+													{pu.username ?? pu.email}
+													<span className="ml-1 opacity-60 capitalize">({pu.user_id === parseInt(String(user?.id ?? "0")) ? "tú" : "editor"})</span>
+												</TooltipContent>
+											</Tooltip>
+										))}
+										{presenceUsers.length > 6 && (
+											<div className="w-7 h-7 rounded-full border-2 border-border bg-secondary flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+												+{presenceUsers.length - 6}
+											</div>
+										)}
+									</div>
+								</TooltipProvider>
+							</div>
+						)}
+
 						<Dialog open={configOpen} onOpenChange={setConfigOpen}>
 							<DialogTrigger asChild>
 								<Button variant="outline" size="sm" className="h-7 text-xs">
-									<Settings2 className="w-3.5 h-3.5 mr-1.5" />
+									<Download className="w-3.5 h-3.5 mr-1.5" />
 									Exportar
 								</Button>
 							</DialogTrigger>
@@ -563,38 +604,24 @@ export default function Editor() {
 							<Save className="w-3.5 h-3.5 mr-1.5" />
 							Guardar
 						</Button>
-					{/* Estado del servidor — solo lectura */}
-					{isRunning && (
-						<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-							<div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
-							Iniciando...
-						</div>
-					)}
-					{serverUrl && !isRunning && (
-						<div className="flex items-center gap-1.5 text-xs text-green-500">
-							<div className="w-2 h-2 rounded-full bg-green-500" />
-							Servidor activo
-						</div>
-					)}
+
+						{isRunning && (
+							<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+								<div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+								Iniciando...
+							</div>
+						)}
+						{serverUrl && !isRunning && (
+							<div className="flex items-center gap-1.5 text-xs text-green-500">
+								<div className="w-2 h-2 rounded-full bg-green-500" />
+								Activo
+							</div>
+						)}
 					</div>
 				</div>
 
-				{/* Tabs */}
+				{/* Panels */}
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-					<div className="flex-shrink-0 border-b border-border bg-card px-4">
-						<TabsList className="h-9">
-							<TabsTrigger value="code" className="text-xs">
-								Código
-							</TabsTrigger>
-							<TabsTrigger value="preview" className="text-xs">
-								Vista Previa
-							</TabsTrigger>
-							<TabsTrigger value="console" className="text-xs">
-								Consola
-							</TabsTrigger>
-						</TabsList>
-					</div>
-
 					<TabsContent value="code" className="flex-1 m-0 overflow-hidden">
 						{localActiveFile ? (
 							<MonacoEditor
@@ -655,22 +682,41 @@ export default function Editor() {
 					</TabsContent>
 
 					<TabsContent value="console" className="flex-1 m-0 overflow-hidden">
-						<div className="h-full bg-background p-4">
-							<Card className="h-full bg-card border-border p-4 overflow-auto font-mono text-sm [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full">
+						<div className="h-full flex flex-col bg-[#0d1117]">
+							{/* Terminal fake top bar */}
+							<div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-[#161b22]">
+								<div className="flex gap-1.5">
+									<span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
+									<span className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
+									<span className="w-2.5 h-2.5 rounded-full bg-green-500/70" />
+								</div>
+								<span className="text-xs text-white/30 font-mono ml-2">orion — terminal</span>
+							</div>
+							<div className="flex-1 overflow-auto p-4 font-mono text-xs [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
 								{consoleLines.length === 0 ? (
-									<p className="text-muted-foreground text-xs">
-										Consola vacía. Ejecuta el proyecto para ver los logs.
+									<p className="text-white/25">
+										Consola vacía — ejecuta el proyecto para ver los logs.
 									</p>
 								) : (
-									<div className="space-y-1">
-										{consoleLines.map((line, i) => (
-											<p key={i} className="text-muted-foreground">
-												{line}
-											</p>
-										))}
+									<div className="space-y-0.5">
+										{consoleLines.map((line, i) => {
+											const isError = line.startsWith("❌") || line.toLowerCase().includes("error");
+											const isSuccess = line.startsWith("✅") || line.toLowerCase().includes("success") || line.toLowerCase().includes("correctamente");
+											const isWarning = line.startsWith("⚠️") || line.toLowerCase().includes("warn");
+											return (
+												<p key={i} className={
+													isError ? "text-red-400" :
+													isSuccess ? "text-green-400" :
+													isWarning ? "text-yellow-400" :
+													"text-white/60"
+												}>
+													{line}
+												</p>
+											);
+										})}
 									</div>
 								)}
-							</Card>
+							</div>
 						</div>
 					</TabsContent>
 				</Tabs>

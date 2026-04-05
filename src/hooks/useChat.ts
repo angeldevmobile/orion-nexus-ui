@@ -34,7 +34,7 @@ interface ChatStore {
   clearChat: () => void;
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+//  helpers 
 
 function addWcLog(msg: string) {
   useChatStore.setState(s => ({ wcLogs: [...s.wcLogs.slice(-49), msg] }));
