@@ -138,10 +138,12 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
       ...context
     };
 
-    // Get AI response
+    // Get AI response — own queue per user, never blocked by others
     const aiResponse = await aiService.generateResponse(message, {
       chatHistory: messages,
-      context: combinedContext
+      context: combinedContext,
+      userId:   req.user?.id,
+      userPlan: req.user?.plan ?? 'free',
     });
 
     // Add AI response
@@ -201,7 +203,9 @@ export const generateCode = asyncHandler(async (req: Request, res: Response) => 
       prompt,
       language,
       framework,
-      context
+      context,
+      userId:   req.user?.id,
+      userPlan: req.user?.plan ?? 'free',
     });
 
     const response: ApiResponse = {
@@ -274,7 +278,7 @@ export const generateReactComponent = asyncHandler(async (req: Request, res: Res
   }
 
   try {
-    const component = await aiService.generateReactComponent(prompt, context);
+    const component = await aiService.generateReactComponent(prompt, context, req.user?.id, req.user?.plan ?? 'free');
 
     const response: ApiResponse = {
       success: true,

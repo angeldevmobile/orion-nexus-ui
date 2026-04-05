@@ -20,6 +20,8 @@ interface RequestWithRawBody extends Request {
 // Import utilities
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
+import { aiQueue } from './services/aiQueue';
+import { promptCache } from './services/promptCache';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -121,16 +123,20 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/docs', docsRoutes);
 app.use('/api/team', teamRoutes);
 
-// Health check with more details
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK',
-    service: 'Orion Nexus Backend',
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0',
+// Health check with AI system metrics
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status:      'OK',
+    service:     'Orion Nexus Backend',
+    timestamp:   new Date().toISOString(),
+    version:     process.env.npm_package_version || '1.0.0',
     environment: process.env.NODE_ENV || 'development',
-    database: 'PostgreSQL',
-    uptime: process.uptime()
+    database:    'PostgreSQL',
+    uptime:      process.uptime(),
+    ai: {
+      queue: aiQueue.stats(),
+      cache: promptCache.stats(),
+    },
   });
 });
 

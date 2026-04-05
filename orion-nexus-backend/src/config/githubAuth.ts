@@ -21,17 +21,23 @@ passport.serializeUser((user: unknown, done: (err: Error | null, id?: string | n
 
 passport.deserializeUser(async (id: string, done) => {
   try {
-    const result = await pool.query("SELECT id, email, role FROM users WHERE id = $1", [id]);
+    const result = await pool.query(
+      `SELECT id, email, role, COALESCE(preferences->>'subscription', 'free') AS plan
+       FROM users WHERE id = $1`,
+      [id]
+    );
 
     if (result.rows.length === 0) {
       return done(new Error("User not found"), null);
     }
 
     const user = result.rows[0];
+    const rawPlan = user.plan as string;
     const expressUser: Express.User = {
       id: user.id.toString(),
       email: user.email,
       role: user.role,
+      plan: (rawPlan === 'pro' || rawPlan === 'enterprise' ? rawPlan : 'free') as 'free' | 'pro' | 'enterprise',
     };
 
     done(null, expressUser);
@@ -53,7 +59,8 @@ passport.use(
         const githubId = profile.id;
 
         const userResult = await pool.query(
-          "SELECT id, email, role FROM users WHERE github_id = $1 OR email = $2",
+          `SELECT id, email, role, COALESCE(preferences->>'subscription', 'free') AS plan
+           FROM users WHERE github_id = $1 OR email = $2`,
           [githubId, email]
         );
         let user = userResult.rows[0];
@@ -62,7 +69,7 @@ passport.use(
           const insertResult = await pool.query(
             `INSERT INTO users (username, email, github_id, github_access_token, role)
              VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, email, role`,
+             RETURNING id, email, role, COALESCE(preferences->>'subscription', 'free') AS plan`,
             [profile.username, email, githubId, accessToken, "user"]
           );
           user = insertResult.rows[0];
@@ -73,10 +80,12 @@ passport.use(
           );
         }
 
+        const rawPlan = user.plan as string;
         const expressUser: Express.User = {
           id: user.id.toString(),
           email: user.email,
           role: user.role,
+          plan: (rawPlan === 'pro' || rawPlan === 'enterprise' ? rawPlan : 'free') as 'free' | 'pro' | 'enterprise',
         };
 
         return done(null, expressUser);

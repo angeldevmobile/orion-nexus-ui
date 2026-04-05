@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { pool } from '../config/database';
 import { HTTP_STATUS } from '../utils/constants';
 import { asyncHandler } from '../middleware/errorHandler';
+import { aiQueue } from '../services/aiQueue';
+import { promptCache } from '../services/promptCache';
 
 /**
  * GET /api/admin/stats
@@ -124,6 +126,10 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
       totalCreditsConsumedToday: parseInt(dailyCreditResult.rows[0]?.total_consumed ?? '0', 10),
       recentSignups: recentResult.rows,
       topConsumers:  topResult.rows,
+      aiSystem: {
+        queue: aiQueue.stats(),
+        cache: promptCache.stats(),
+      },
     },
   });
 });

@@ -24,9 +24,11 @@ export const authenticateToken = async (
 
     const decoded = verifyToken(token);
 
-    // Buscar usuario en PostgreSQL
+    // Buscar usuario en PostgreSQL (incluye plan para la cola de IA)
     const userResult = await pool.query(
-      'SELECT id, email, role FROM users WHERE id = $1',
+      `SELECT id, email, role,
+              COALESCE(preferences->>'subscription', 'free') AS plan
+       FROM users WHERE id = $1`,
       [decoded.userId]
     );
     if (userResult.rows.length === 0) {
@@ -38,11 +40,13 @@ export const authenticateToken = async (
       return;
     }
     const user = userResult.rows[0];
+    const rawPlan = user.plan as string;
 
     req.user = {
       id: user.id.toString(),
       email: user.email,
-      role: user.role as 'user' | 'admin' 
+      role: user.role as 'user' | 'admin',
+      plan: (rawPlan === 'pro' || rawPlan === 'enterprise' ? rawPlan : 'free') as 'free' | 'pro' | 'enterprise',
     };
 
     next();

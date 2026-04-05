@@ -7,6 +7,7 @@ declare module 'express-serve-static-core' {
       email: string;
       role: 'user' | 'admin';
       username?: string;
+      plan: 'free' | 'pro' | 'enterprise';
     };
   }
 }
@@ -18,6 +19,7 @@ declare global {
       email: string;
       role: 'user' | 'admin';
       username?: string;
+      plan: 'free' | 'pro' | 'enterprise';
     }
   }
 }

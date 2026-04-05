@@ -3,83 +3,131 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Crear pool de conexiones de PostgreSQL
+const isProduction = process.env.NODE_ENV === 'production';
+
+// ─── Pool configuration ───────────────────────────────────────────────────────
+//
+// Development:  max=10, no SSL, no keepAlive
+// Production:   max=20, SSL required, keepAlive enabled, statement_timeout
+//
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
   database: process.env.DB_NAME || 'orion-nexus',
   password: process.env.DB_PASSWORD || '',
   port: parseInt(process.env.DB_PORT || '5432'),
-  max: 20, // máximo número de conexiones en el pool
-  idleTimeoutMillis: 30000, // tiempo antes de cerrar conexiones inactivas
-  connectionTimeoutMillis: 2000, // tiempo máximo para conectar
+
+  // Connection pool sizing
+  max: parseInt(process.env.DB_POOL_MAX || (isProduction ? '20' : '10')),
+  min: parseInt(process.env.DB_POOL_MIN || (isProduction ? '2' : '0')),
+
+  // Timeouts
+  idleTimeoutMillis: 30_000,         // close idle connections after 30 s
+  connectionTimeoutMillis: 5_000,    // give up connecting after 5 s
+  statement_timeout: 30_000,         // cancel slow queries after 30 s
+  query_timeout: 30_000,             // same at the pg-driver level
+
+  // Keep long-lived connections alive through load-balancer / firewall NAT
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
+
+  // SSL: required in production; disabled locally unless DB_SSL=true
+  ssl: isProduction || process.env.DB_SSL === 'true'
+    ? { rejectUnauthorized: false }  // set to true when you have a valid cert
+    : undefined,
 });
 
-export const connectDatabase = async (): Promise<void> => {
-  try {
-    // Probar la conexión
-    const client = await pool.connect();
-    console.log(' Connected to PostgreSQL');
-    client.release();
+// ─── Circuit-breaker state ────────────────────────────────────────────────────
+let consecutiveErrors = 0;
+const ERROR_THRESHOLD = 5;          // open circuit after 5 consecutive failures
+const RESET_AFTER_MS = 30_000;      // attempt reset after 30 s
+let circuitOpenAt: number | null = null;
 
-    // Configurar eventos del pool
-    pool.on('error', (error) => {
-      console.error(' PostgreSQL pool error:', error);
-    });
-
-    pool.on('connect', () => {
-      console.log(' New PostgreSQL client connected');
-    });
-
-    pool.on('remove', () => {
-      console.log(' PostgreSQL client removed');
-    });
-
-    // Cerrar conexiones al terminar la aplicación
-    process.on('SIGINT', async () => {
-      console.log(' Closing PostgreSQL pool...');
-      await pool.end();
-      console.log(' PostgreSQL pool closed');
-      process.exit(0);
-    });
-
-    process.on('SIGTERM', async () => {
-      console.log(' Closing PostgreSQL pool...');
-      await pool.end();
-      console.log(' PostgreSQL pool closed');
-      process.exit(0);
-    });
-
-  } catch (error) {
-    console.error(' Failed to connect to PostgreSQL:', error);
-    throw error;
+function isCircuitOpen(): boolean {
+  if (circuitOpenAt === null) return false;
+  if (Date.now() - circuitOpenAt > RESET_AFTER_MS) {
+    // Half-open: let one request through to test recovery
+    circuitOpenAt = null;
+    consecutiveErrors = 0;
+    return false;
   }
+  return true;
+}
+
+function recordSuccess(): void {
+  consecutiveErrors = 0;
+  circuitOpenAt = null;
+}
+
+function recordError(): void {
+  consecutiveErrors++;
+  if (consecutiveErrors >= ERROR_THRESHOLD && circuitOpenAt === null) {
+    circuitOpenAt = Date.now();
+    console.error(`[DB] Circuit breaker OPEN after ${ERROR_THRESHOLD} consecutive errors`);
+  }
+}
+
+// ─── Lifecycle ────────────────────────────────────────────────────────────────
+export const connectDatabase = async (): Promise<void> => {
+  const client = await pool.connect();
+  console.log('[DB] Connected to PostgreSQL');
+  client.release();
+
+  pool.on('error', (error) => {
+    console.error('[DB] Pool error:', error);
+    recordError();
+  });
+
+  pool.on('connect', () => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DB] New client connected');
+    }
+  });
+
+  pool.on('remove', () => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DB] Client removed');
+    }
+  });
+
+  const shutdown = async () => {
+    console.log('[DB] Closing pool...');
+    await pool.end();
+    console.log('[DB] Pool closed');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 };
 
-// Exportar el pool para usar en otros archivos
-export { pool };
-
-// Tipos específicos para parámetros de query
+// ─── Query helpers ────────────────────────────────────────────────────────────
 export type QueryParams = (string | number | boolean | null | Date)[];
 
-// Función helper para ejecutar queries con tipos seguros
 export const query = async <T extends QueryResultRow = Record<string, unknown>>(
-  text: string, 
+  text: string,
   params?: QueryParams
 ): Promise<QueryResult<T>> => {
+  if (isCircuitOpen()) {
+    throw new Error('[DB] Circuit breaker is open — database unavailable');
+  }
+
   const start = Date.now();
   try {
     const res = await pool.query<T>(text, params);
     const duration = Date.now() - start;
-    console.log(' Executed query', { text, duration, rows: res.rowCount });
+    if (process.env.NODE_ENV !== 'production' || duration > 500) {
+      console.log('[DB] Query', { duration, rows: res.rowCount });
+    }
+    recordSuccess();
     return res;
   } catch (error) {
-    console.error(' Query error:', error);
+    recordError();
+    console.error('[DB] Query error:', error);
     throw error;
   }
 };
 
-// Función helper para queries que devuelven una sola fila
 export const queryOne = async <T extends QueryResultRow = Record<string, unknown>>(
   text: string,
   params?: QueryParams
@@ -88,7 +136,6 @@ export const queryOne = async <T extends QueryResultRow = Record<string, unknown
   return result.rows[0] || null;
 };
 
-// Función helper para queries que devuelven múltiples filas
 export const queryMany = async <T extends QueryResultRow = Record<string, unknown>>(
   text: string,
   params?: QueryParams
@@ -97,20 +144,27 @@ export const queryMany = async <T extends QueryResultRow = Record<string, unknow
   return result.rows;
 };
 
-// Función para transacciones con tipos seguros
 export const transaction = async <T>(
   callback: (client: PoolClient) => Promise<T>
 ): Promise<T> => {
+  if (isCircuitOpen()) {
+    throw new Error('[DB] Circuit breaker is open — database unavailable');
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const result = await callback(client);
     await client.query('COMMIT');
+    recordSuccess();
     return result;
   } catch (error) {
     await client.query('ROLLBACK');
+    recordError();
     throw error;
   } finally {
     client.release();
   }
 };
+
+export { pool };
