@@ -18,6 +18,8 @@ import History from "./pages/History";
 import Help from "./pages/Help";
 import ArticleDetail from "./pages/ArticleDetail";
 import Auth from "./pages/Auth";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
 import { Header } from "./components/layout/Header";
@@ -29,13 +31,15 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
 	const location = useLocation();
-	const hideHeader = ["/auth", "/auth/callback", "/ai-chat", "/editor", "/projects", "/dashboard", "/components", "/settings", "/pricing", "/community", "/history", "/help", "/admin"].includes(location.pathname) || location.pathname.startsWith("/help/articles/");
+	const hideHeader = ["/auth", "/login", "/register", "/auth/callback", "/ai-chat", "/editor", "/projects", "/dashboard", "/components", "/settings", "/pricing", "/community", "/history", "/help", "/admin"].includes(location.pathname) || location.pathname.startsWith("/help/articles/");
 	return (
 		<>
 			{!hideHeader && <Header />}
 			<Routes>
 				<Route path="/" element={<Index />} />
 				<Route path="/auth" element={<Auth />} />
+				<Route path="/login" element={<Login />} />
+				<Route path="/register" element={<Register />} />
 				<Route path="/auth/callback" element={<AuthCallback />} />
 				{/* Rutas protegidas */}
 				<Route

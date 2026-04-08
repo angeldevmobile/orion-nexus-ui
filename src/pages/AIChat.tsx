@@ -12,9 +12,7 @@ import {
   Tablet,
   Trash2,
   ExternalLink,
-  CheckCircle2,
   Upload,
-  ChevronRight,
   Github,
   Loader2,
   PanelLeftClose,
@@ -160,67 +158,201 @@ function PreviewLoadingSkeleton() {
   );
 }
 
-// ─── Lovable-style generation progress ───────────────────────────────────────
-function GenerationProgress({ generatingFiles }: { generatingFiles: string[] }) {
+// ─── 3D rotating card carousel shown while generating ────────────────────────
+// SVG icons for generation slides
+function IconBolt({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  );
+}
+function IconBrain({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.5 2a2.5 2.5 0 0 1 5 0v.5" />
+      <path d="M16 6.5A2.5 2.5 0 0 1 18.5 9v.5" />
+      <path d="M19 13a2.5 2.5 0 0 1 0 5h-.5" />
+      <path d="M14.5 21a2.5 2.5 0 0 1-5 0v-.5" />
+      <path d="M8 17.5A2.5 2.5 0 0 1 5.5 15v-.5" />
+      <path d="M5 11a2.5 2.5 0 0 1 0-5h.5" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function IconPalette({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+    </svg>
+  );
+}
+function IconRocket({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+      <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22 22 0 0 1-4 2z" />
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+      <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+    </svg>
+  );
+}
+function IconLink({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
+const GENERATION_SLIDES = [
+  {
+    Icon: IconBolt,
+    title: "Generando componentes",
+    subtitle: "Construyendo la arquitectura de tu UI en tiempo real",
+    color: "from-cyan-500/20 to-cyan-500/5",
+    border: "border-cyan-500/30",
+    glow: "shadow-cyan-500/20",
+    iconColor: "text-cyan-400",
+    dot: "bg-cyan-400",
+  },
+  {
+    Icon: IconBrain,
+    title: "IA analizando diseño",
+    subtitle: "Claude está optimizando la estructura y los estilos",
+    color: "from-violet-500/20 to-violet-500/5",
+    border: "border-violet-500/30",
+    glow: "shadow-violet-500/20",
+    iconColor: "text-violet-400",
+    dot: "bg-violet-400",
+  },
+  {
+    Icon: IconPalette,
+    title: "Aplicando Tailwind CSS",
+    subtitle: "Diseño responsivo y accesible desde el primer momento",
+    color: "from-pink-500/20 to-pink-500/5",
+    border: "border-pink-500/30",
+    glow: "shadow-pink-500/20",
+    iconColor: "text-pink-400",
+    dot: "bg-pink-400",
+  },
+  {
+    Icon: IconRocket,
+    title: "Preparando el preview",
+    subtitle: "WebContainer listo para ejecutar tu proyecto al instante",
+    color: "from-amber-500/20 to-amber-500/5",
+    border: "border-amber-500/30",
+    glow: "shadow-amber-500/20",
+    iconColor: "text-amber-400",
+    dot: "bg-amber-400",
+  },
+  {
+    Icon: IconLink,
+    title: "Conectando módulos",
+    subtitle: "Enrutamiento, estado y props enlazados automáticamente",
+    color: "from-emerald-500/20 to-emerald-500/5",
+    border: "border-emerald-500/30",
+    glow: "shadow-emerald-500/20",
+    iconColor: "text-emerald-400",
+    dot: "bg-emerald-400",
+  },
+];
+
+function GenerationProgress({ generatingFiles: _ }: { generatingFiles: string[] }) {
   const [elapsed, setElapsed] = useState(0);
+  const [current, setCurrent] = useState(0);
+  const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
     setElapsed(0);
-    const id = setInterval(() => setElapsed(e => e + 1), 1000);
+    const timer = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-rotate every 2.8s
+  useEffect(() => {
+    const id = setInterval(() => {
+      setAnimating(true);
+      setTimeout(() => {
+        setCurrent(c => (c + 1) % GENERATION_SLIDES.length);
+        setAnimating(false);
+      }, 350);
+    }, 2800);
     return () => clearInterval(id);
   }, []);
 
-  const lastFile = generatingFiles[generatingFiles.length - 1];
+  const slide = GENERATION_SLIDES[current];
 
   return (
-    <div className="h-full bg-[#0d0d14] flex flex-col items-center justify-center p-8 relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-primary/8 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-violet-500/6 rounded-full blur-3xl pointer-events-none" />
+    <div className="h-full bg-[#080810] flex flex-col items-center justify-center relative overflow-hidden select-none">
+      {/* Background orbs */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-cyan-500/6 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-56 h-56 bg-violet-500/6 rounded-full blur-3xl animate-pulse [animation-delay:1.4s]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/3 rounded-full blur-3xl" />
+      </div>
 
-      <div className="relative z-10 w-full max-w-sm space-y-4">
-        {/* Timer */}
-        <div className="flex items-center gap-2 text-xs text-white/40">
-          <div className="w-3.5 h-3.5 rounded-full border-2 border-primary/60 border-t-primary animate-spin" />
-          <span>Generando por {elapsed}s</span>
+      {/* Grid dots background */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.03]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+
+      <div className="relative z-10 flex flex-col items-center gap-8 w-full max-w-xs px-6">
+        {/* Orion logo */}
+        <div className="relative">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20 border border-white/10 flex items-center justify-center shadow-[0_0_60px] shadow-cyan-500/15">
+            <Sparkles className="w-7 h-7 text-cyan-400" />
+          </div>
+          <div className="absolute -inset-1.5 rounded-3xl border border-cyan-500/15 animate-ping [animation-duration:2s]" />
         </div>
 
-        {/* Currently writing */}
-        {lastFile && (
-          <div className="bg-white/4 border border-white/8 rounded-xl px-4 py-3">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-white/50">Escribiendo</span>
-              <ChevronRight className="w-3 h-3 text-white/20" />
-            </div>
-            <p className="text-xs text-cyan-400/80 font-mono truncate">{lastFile}</p>
-          </div>
-        )}
-
-        {/* Files generated so far */}
-        {generatingFiles.length > 0 && (
-          <div className="bg-white/3 border border-white/8 rounded-xl overflow-hidden max-h-64 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10">
-            {generatingFiles.map((file, i) => {
-              const isLast = i === generatingFiles.length - 1;
-              return (
-                <div key={file} className={`flex items-center gap-3 px-4 py-2 ${i > 0 ? 'border-t border-white/5' : ''}`}>
-                  {isLast ? (
-                    <div className="w-3 h-3 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin flex-shrink-0" />
-                  ) : (
-                    <CheckCircle2 className="w-3 h-3 text-green-400 flex-shrink-0" />
-                  )}
-                  <span className={`text-xs font-mono truncate ${isLast ? 'text-white/70' : 'text-white/35'}`}>
-                    {file}
-                  </span>
+        {/* 3D flipping card */}
+        <div className="w-full" style={{ perspective: '800px' }}>
+          <div
+            style={{
+              transform: animating ? 'rotateY(90deg) scale(0.92)' : 'rotateY(0deg) scale(1)',
+              opacity: animating ? 0 : 1,
+              transition: 'transform 350ms cubic-bezier(0.4,0,0.2,1), opacity 350ms ease',
+            }}
+          >
+            <div className={`w-full bg-gradient-to-b ${slide.color} border ${slide.border} rounded-2xl p-5 shadow-xl ${slide.glow} shadow-lg`}>
+              <div className="flex items-start gap-4">
+                <slide.Icon className={`w-7 h-7 flex-shrink-0 mt-0.5 ${slide.iconColor}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white/90 leading-snug">{slide.title}</p>
+                  <p className="text-xs text-white/45 mt-1 leading-relaxed">{slide.subtitle}</p>
                 </div>
-              );
-            })}
+              </div>
+            </div>
           </div>
-        )}
+        </div>
 
-        {generatingFiles.length === 0 && (
-          <div className="bg-white/3 border border-white/8 rounded-xl px-4 py-3 text-center">
-            <p className="text-xs text-white/30">Analizando solicitud...</p>
-          </div>
-        )}
+        {/* Dot indicators */}
+        <div className="flex items-center gap-1.5">
+          {GENERATION_SLIDES.map((s, i) => (
+            <div
+              key={i}
+              className={`rounded-full transition-all duration-500 ${
+                i === current ? `w-5 h-1.5 ${s.dot}` : 'w-1.5 h-1.5 bg-white/15'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Timer */}
+        <div className="flex items-center gap-1.5 text-xs text-white/30">
+          <div className="w-2.5 h-2.5 rounded-full border-2 border-primary/50 border-t-primary animate-spin" />
+          <span>{elapsed}s</span>
+        </div>
       </div>
     </div>
   );
@@ -247,11 +379,12 @@ export default function AIChat() {
     generatedCode,
     previewUrl,
     wcStatus,
+    wcError,
     uiData,
     sendMessage,
     sendFullProjectRequest,
     clearChat,
-  } = useChat();
+  } = useChat() as ReturnType<typeof useChat> & { wcError: string };
 
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
@@ -720,8 +853,30 @@ export default function AIChat() {
                   </div>
                 ) : sending ? (
                   <GenerationProgress generatingFiles={generatingFiles} />
+                ) : wcStatus === 'error' ? (
+                  <div className="h-full bg-[#080810] flex flex-col items-center justify-center gap-5 p-8">
+                    <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div className="text-center space-y-1 max-w-xs">
+                      <p className="text-sm font-semibold text-white/80">No se pudo cargar el preview</p>
+                      <p className="text-xs text-white/35 leading-relaxed">{wcError || 'El WebContainer tardó demasiado o encontró un error.'}</p>
+                    </div>
+                    <button
+                      onClick={() => { if (uiData?.files) { import('@/hooks/useChat').then(m => { /* trigger retry via clearChat + resend is complex; just reload */ window.location.reload(); }); } }}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white/60 hover:bg-white/10 hover:text-white/90 transition-all"
+                    >
+                      Recargar página
+                    </button>
+                  </div>
                 ) : wcStatus !== 'idle' ? (
-                  <PreviewLoadingSkeleton />
+                  <div className="relative h-full">
+                    <PreviewLoadingSkeleton />
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 text-xs text-white/30">
+                      <div className="w-2.5 h-2.5 rounded-full border-2 border-primary/50 border-t-primary animate-spin" />
+                      <span>{wcStatus === 'booting' ? 'Iniciando WebContainer...' : wcStatus === 'installing' ? 'Instalando dependencias...' : 'Iniciando servidor Vite...'}</span>
+                    </div>
+                  </div>
                 ) : (
                   <div className="h-full flex flex-col bg-[#0d0d14] relative overflow-hidden">
                     {/* Ambient glow */}

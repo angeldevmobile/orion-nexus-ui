@@ -50,7 +50,7 @@ async function handleViteError(error: string) {
 
   useChatStore.setState({ wcError: error });
 
-  // ── Case 1: Missing npm package → auto-install, no AI needed ────────────
+  // Case 1: Missing npm package → auto-install, no AI needed 
   const missingPkg = error.match(/Failed to resolve import ["']([^"'./@][^"']*?)["']/);
   if (missingPkg) {
     const pkg = missingPkg[1].split('/')[0]; // handle scoped: @scope/pkg → @scope/pkg
@@ -58,14 +58,14 @@ async function handleViteError(error: string) {
     try {
       await installPackage(pkg, addWcLog);
       useChatStore.setState({ wcError: '' });
-      addWcLog('🔄 Vite recargando con el nuevo paquete...');
+      addWcLog('Vite recargando con el nuevo paquete...');
     } catch (e) {
-      addWcLog(`❌ No se pudo instalar ${pkg}: ${e instanceof Error ? e.message : String(e)}`);
+      addWcLog(`No se pudo instalar ${pkg}: ${e instanceof Error ? e.message : String(e)}`);
     }
     return;
   }
 
-  // ── Case 2: Code error → send to AI for automatic fix ──────────────────
+  // Case 2: Code error → send to AI for automatic fix 
   const state = useChatStore.getState();
   if (state.sending) return; // already working
 
@@ -76,7 +76,7 @@ async function handleViteError(error: string) {
     .join('\n\n---\n\n')
     .slice(0, 4000); // token limit
 
-  addWcLog('🤖 Error detectado — enviando al AI para corrección automática...');
+  addWcLog('Error detectado — enviando al AI para corrección automática...');
 
   await useChatStore.getState().autoFixError(
     `Corrige este error de Vite automáticamente:\n\`\`\`\n${error}\n\`\`\`\n\nArchivos actuales:\n${fileContext}`
@@ -95,7 +95,7 @@ async function writeFilesToVirtualFS(files: { path: string; content: string }[])
   sessionStorage.setItem('orion:fs:fresh', 'true');
 }
 
-// ── Default config files injected when AI doesn't generate them ──────────────
+// ── Default config files injected when AI doesn't generate them 
 
 const DEFAULT_PACKAGE_JSON = JSON.stringify({
   name: 'orion-project',
@@ -221,10 +221,10 @@ function augmentFilesForWC(files: { path: string; content: string }[]): { path: 
 async function bootWebContainer(files: { path: string; content: string }[]) {
   const currentStatus = useChatStore.getState().wcStatus;
 
-  // ── If Vite is already running → hot-update files only, no restart ──────────
+  // If Vite is already running → hot-update files only, no restart 
   if (currentStatus === 'ready') {
     try {
-      addWcLog('🔄 Actualizando archivos en WebContainer...');
+      addWcLog('Actualizando archivos en WebContainer...');
       const snapshot: Record<string, string> = {};
       for (const f of files) {
         // Only update source files — skip package.json, vite.config, tsconfig
@@ -238,17 +238,27 @@ async function bootWebContainer(files: { path: string; content: string }[]) {
         }
       }
       await updateFilesInContainer(snapshot);
-      addWcLog(`✅ ${Object.keys(snapshot).length} archivos actualizados — Vite HMR activo`);
+      addWcLog(`${Object.keys(snapshot).length} archivos actualizados — Vite HMR activo`);
     } catch (err) {
-      addWcLog(`⚠️ Error actualizando archivos: ${err instanceof Error ? err.message : String(err)}`);
+      addWcLog(`Error actualizando archivos: ${err instanceof Error ? err.message : String(err)}`);
     }
     return;
   }
 
-  // ── Cold boot ─────────────────────────────────────────────────────────────
+  //  Cold boot 
+  const BOOT_TIMEOUT_MS = 120_000; // 2 min max
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error('Tiempo de espera agotado. Vite tardó demasiado en iniciar.')),
+      BOOT_TIMEOUT_MS,
+    );
+  });
+
   try {
     useChatStore.setState({ wcStatus: 'booting', wcLogs: [] });
-    addWcLog('🚀 Iniciando WebContainer...');
+    addWcLog('Iniciando WebContainer...');
 
     const augmented = augmentFilesForWC(files);
     const fsSnapshot: Record<string, string> = {};
@@ -257,27 +267,29 @@ async function bootWebContainer(files: { path: string; content: string }[]) {
       fsSnapshot[p] = f.content;
     }
 
-    await initWebContainer(fsSnapshot);
-    addWcLog(`📦 ${augmented.length} archivos montados en WebContainer`);
+    await Promise.race([initWebContainer(fsSnapshot), timeoutPromise]);
+    addWcLog(`${augmented.length} archivos montados`);
 
     useChatStore.setState({ wcStatus: 'installing' });
-    await installDependencies(addWcLog);
+    await Promise.race([installDependencies(addWcLog), timeoutPromise]);
 
     useChatStore.setState({ wcStatus: 'starting' });
-    addWcLog('⚡ Iniciando servidor Vite...');
+    addWcLog('Iniciando servidor Vite...');
 
-    const url = await runDevServer(addWcLog, handleViteError);
+    const url = await Promise.race([runDevServer(addWcLog, handleViteError), timeoutPromise]);
 
-    useChatStore.setState({ wcStatus: 'ready', previewUrl: url, wcError: '' });
-    addWcLog(`✅ Vite corriendo en ${url}`);
+    if (timeoutId) clearTimeout(timeoutId);
+    useChatStore.setState({ wcStatus: 'ready', previewUrl: url as string, wcError: '' });
+    addWcLog(`Vite listo en ${url}`);
   } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
     const msg = err instanceof Error ? err.message : String(err);
-    useChatStore.setState({ wcStatus: 'error' });
-    addWcLog(`❌ ${msg}`);
+    useChatStore.setState({ wcStatus: 'error', wcError: msg });
+    addWcLog(`Error: ${msg}`);
   }
 }
 
-// ── store ─────────────────────────────────────────────────────────────────────
+//  store 
 
 export const useChat = create<ChatStore>((set, get) => ({
   messages: [],
@@ -312,7 +324,7 @@ export const useChat = create<ChatStore>((set, get) => ({
       timestamp: m.timestamp.toISOString(),
     }));
 
-    // ── Component library injection ──────────────────────────────────────────
+    // Component library injection 
     // If the user mentions a library component by name/tag, pre-write it to the
     // virtual FS and inject its code as additional context so the AI uses it.
     const matchedComponents = findComponentsByPrompt(prompt);
@@ -402,7 +414,7 @@ export const useChat = create<ChatStore>((set, get) => ({
         set(state => ({
           messages: [...state.messages, {
             role: 'assistant',
-            content: `❌ ${errorText}`,
+            content: `${errorText}`,
             timestamp: new Date(),
           }],
           sending: false,
@@ -447,7 +459,7 @@ export const useChat = create<ChatStore>((set, get) => ({
 
     const loadingMsg: Message = {
       role: 'assistant',
-      content: '🚀 Generando proyecto completo...',
+      content: 'Generando proyecto completo...',
       timestamp: new Date(),
     };
     set(state => ({ messages: [...state.messages, loadingMsg] }));
@@ -477,7 +489,7 @@ export const useChat = create<ChatStore>((set, get) => ({
       set(state => ({
         messages: [...state.messages.slice(0, -1), {
           role: 'assistant',
-          content: `✅ **${data.meta.name}** generado con ${fileEntries.length} archivos.\n\n${data.meta.description}`,
+          content: `**${data.meta.name}** generado con ${fileEntries.length} archivos.\n\n${data.meta.description}`,
           timestamp: new Date(),
         }],
         generatedCode: mainCode,
@@ -492,7 +504,7 @@ export const useChat = create<ChatStore>((set, get) => ({
       set(state => ({
         messages: [...state.messages.slice(0, -1), {
           role: 'assistant',
-          content: `❌ ${errorText}`,
+          content: `${errorText}`,
           timestamp: new Date(),
         }],
         sending: false,
@@ -504,7 +516,7 @@ export const useChat = create<ChatStore>((set, get) => ({
     // Silent AI call — adds a system message in chat and applies the fix
     const fixMsg: Message = {
       role: 'assistant',
-      content: '🔧 Detecté un error, corrigiéndolo automáticamente...',
+      content: 'Detecté un error, corrigiéndolo automáticamente...',
       timestamp: new Date(),
     };
     set(state => ({ messages: [...state.messages, fixMsg], sending: true, streamingContent: '' }));
@@ -545,7 +557,7 @@ export const useChat = create<ChatStore>((set, get) => ({
     set(state => ({
       messages: [
         ...state.messages.slice(0, -1),
-        { role: 'assistant', content: '✅ Error corregido automáticamente', timestamp: new Date(), uiData: parsedUiData },
+        { role: 'assistant', content: ' Error corregido automáticamente', timestamp: new Date(), uiData: parsedUiData },
       ],
       sending: false,
       streamingContent: '',

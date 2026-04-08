@@ -65,10 +65,10 @@ export const Header = () => {
           {!hideAuthButtons && (
             <>
               <Button variant="ghost" size="sm" asChild className="hidden md:flex">
-                <Link to="/auth">Iniciar Sesión</Link>
+                <Link to="/login">Iniciar Sesión</Link>
               </Button>
               <Button size="sm" asChild className="bg-primary hover:bg-primary/90">
-                <Link to="/auth">Comenzar</Link>
+                <Link to="/register">Comenzar</Link>
               </Button>
             </>
           )}

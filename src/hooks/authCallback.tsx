@@ -21,7 +21,7 @@ export default function AuthCallback() {
         description: 'No se pudo completar el inicio de sesión con GitHub',
         variant: 'destructive',
       });
-      navigate('/auth');
+      navigate('/login');
       return;
     }
 
@@ -39,12 +39,12 @@ export default function AuthCallback() {
             });
             navigate('/dashboard');
           } else {
-            navigate('/auth');
+            navigate('/login');
           }
         })
-        .catch(() => navigate('/auth'));
+        .catch(() => navigate('/login'));
     } else {
-      navigate('/auth');
+      navigate('/login');
     }
   }, [searchParams, navigate, login, toast]);
 
