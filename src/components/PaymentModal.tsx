@@ -9,12 +9,16 @@ interface PaymentModalProps {
   onOpenChange: (open: boolean) => void;
   planName: string;
   planPrice: string;
+  billing?: "monthly" | "annual";
 }
 
-export function PaymentModal({ open, onOpenChange, planName, planPrice }: PaymentModalProps) {
+export function PaymentModal({ open, onOpenChange, planName, planPrice, billing = "monthly" }: PaymentModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const checkoutOpened = useRef(false);
+
+  const isAnnual = billing === "annual";
+  const annualTotal = isAnnual ? Number(planPrice) * 12 : null;
 
   const handleCheckout = async () => {
     if (loading) return;
@@ -22,6 +26,7 @@ export function PaymentModal({ open, onOpenChange, planName, planPrice }: Paymen
     try {
       const res = await apiService.post<{ success: boolean; data: { checkoutUrl: string } }>("/payments/checkout", {
         planName,
+        billing,
       });
       const url = res.data?.checkoutUrl;
       if (!url) throw new Error("No se recibió URL de checkout");
@@ -53,11 +58,13 @@ export function PaymentModal({ open, onOpenChange, planName, planPrice }: Paymen
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[9px] font-semibold text-blue-400 uppercase tracking-widest mb-0.5">
-                Suscripción
+                Suscripción {isAnnual ? "Anual" : "Mensual"}
               </p>
               <h2 className="text-sm font-bold text-white leading-tight">Plan {planName}</h2>
               <p className="text-slate-400 text-[11px] mt-0.5">
-                ${planPrice} / mes · Cancela cuando quieras
+                {isAnnual
+                  ? `$${planPrice}/mes · facturado $${annualTotal}/año`
+                  : `$${planPrice}/mes · Cancela cuando quieras`}
               </p>
             </div>
             <div className="text-right shrink-0 ml-3">
@@ -96,6 +103,8 @@ export function PaymentModal({ open, onOpenChange, planName, planPrice }: Paymen
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Cargando...
               </>
+            ) : isAnnual ? (
+              <>🔒 Pagar ${annualTotal} / año</>
             ) : (
               <>🔒 Pagar ${planPrice} / mes</>
             )}

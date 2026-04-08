@@ -3,7 +3,10 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Rocket, Zap, Code2, Sparkles, Shield, Users, ArrowRight, Upload, Heart, Eye, Bookmark, Globe } from "lucide-react";
+import {
+  Zap, Code2, Sparkles, Shield, Users, ArrowRight,
+  Upload, Heart, Eye, Bookmark, Globe, CheckCircle2,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { UploadProjectModal } from "@/components/UploadProjectModal";
 import { ViewProjectModal } from "@/components/ViewProjectModal";
@@ -64,17 +67,17 @@ function CommunityShowcase() {
   if (!loading && templates.length === 0) return null;
 
   return (
-    <section className="py-20 px-4">
+    <section className="py-24 px-4 relative">
       <div className="container mx-auto max-w-6xl">
-        <div className="text-center mb-12">
-          <Badge className="mb-4 bg-violet-500/10 text-violet-400 border-violet-500/20">
+        <div className="text-center mb-14">
+          <Badge className="mb-4 bg-violet-500/10 text-violet-400 border-violet-500/20 px-3 py-1">
             <Bookmark className="w-3.5 h-3.5 mr-1.5" />
             Plantillas de la comunidad
           </Badge>
           <h2 className="text-3xl md:text-4xl font-heading font-bold mb-3">
             Empieza desde una base real
           </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
+          <p className="text-muted-foreground max-w-xl mx-auto text-lg">
             Proyectos publicados por la comunidad que puedes usar como punto de partida
           </p>
         </div>
@@ -83,7 +86,7 @@ function CommunityShowcase() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-border bg-card animate-pulse">
-                <div className="h-32 rounded-t-xl bg-secondary" />
+                <div className="h-36 rounded-t-xl bg-secondary" />
                 <div className="p-5 space-y-2">
                   <div className="h-4 bg-secondary rounded w-2/3" />
                   <div className="h-3 bg-secondary rounded w-1/2" />
@@ -92,15 +95,18 @@ function CommunityShowcase() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
             {templates.map((tpl) => {
               const fw = tpl.settings?.framework ?? "vanilla";
               const gradient = FW_GRADIENT[fw] ?? FW_GRADIENT.vanilla;
               return (
-                <Card key={tpl.id} className="bg-card border-border hover:border-violet-500/40 transition-all group overflow-hidden">
-                  <div className={`h-32 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                <Card
+                  key={tpl.id}
+                  className="bg-card border-border hover:border-violet-500/50 transition-all duration-300 group overflow-hidden hover:shadow-lg hover:shadow-violet-500/10"
+                >
+                  <div className={`h-36 bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden`}>
                     {tpl.settings?.thumbnail
-                      ? <img src={tpl.settings.thumbnail} alt={tpl.name} className="w-full h-full object-cover" />
+                      ? <img src={tpl.settings.thumbnail} alt={tpl.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       : <Bookmark className="w-10 h-10 opacity-20 text-violet-400" />
                     }
                   </div>
@@ -125,11 +131,11 @@ function CommunityShowcase() {
         )}
 
         <div className="text-center">
-          <Button variant="outline" size="lg" asChild>
+          <Button variant="outline" size="lg" asChild className="gap-2">
             <Link to="/community">
-              <Globe className="w-4 h-4 mr-2" />
+              <Globe className="w-4 h-4" />
               Ver todas en comunidad
-              <ArrowRight className="ml-2 w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
             </Link>
           </Button>
         </div>
@@ -137,6 +143,24 @@ function CommunityShowcase() {
     </section>
   );
 }
+
+const steps = [
+  {
+    number: "01",
+    title: "Describe tu idea",
+    description: "Escribe en lenguaje natural lo que quieres construir. Sin tecnicismos.",
+  },
+  {
+    number: "02",
+    title: "La IA genera el código",
+    description: "Nuestro motor de IA avanzado construye la estructura, componentes y lógica.",
+  },
+  {
+    number: "03",
+    title: "Personaliza y publica",
+    description: "Refina con el editor en vivo y comparte tu aplicación con el mundo.",
+  },
+];
 
 const Index = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -168,178 +192,279 @@ const Index = () => {
     setViewProjectModalOpen(true);
   };
 
-  const features = [
-    {
-      icon: Sparkles,
-      title: "AI-Powered Generation",
-      description: "Transform ideas into code instantly with our advanced AI engine",
-    },
-    {
-      icon: Code2,
-      title: "Live Code Editor",
-      description: "Real-time editing with Monaco Editor and instant preview",
-    },
-    {
-      icon: Zap,
-      title: "Lightning Fast",
-      description: "Deploy your applications in seconds, not hours",
-    },
-    {
-      icon: Shield,
-      title: "Enterprise Security",
-      description: "Bank-level security for your projects and data",
-    },
-    {
-      icon: Users,
-      title: "Team Collaboration",
-      description: "Work together seamlessly with your team",
-    },
-    {
-      icon: Rocket,
-      title: "One-Click Deploy",
-      description: "Deploy to production with a single click",
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <Header />
-      
+
       <main>
-        {/* Hero Section */}
-        <section className="pt-32 pb-20 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center animate-fade-in">
-              <Badge className="mb-6 bg-primary/10 text-primary border-primary/20">
-                🚀 Now with AI Code Generation
-              </Badge>
-              
-              <h1 className="text-5xl md:text-7xl font-heading font-bold mb-6 bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent">
-                Build Applications
-                <br />
-                at the Speed of Thought
-              </h1>
-              
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-                Transform your ideas into production-ready applications using AI-powered development tools. 
-                No complexity, just results.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg h-14 px-8">
-                  <Link to="/register">
-                    Start Building Free
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild className="text-lg h-14 px-8">
-                  <Link to="/dashboard">
-                    View Demo
-                  </Link>
-                </Button>
-              </div>
+        {/* ── Hero ── */}
+        <section className="relative pt-32 pb-24 px-4 flex flex-col items-center text-center overflow-hidden">
+          {/* Background glows */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-primary/15 rounded-full blur-[130px] pointer-events-none" />
+          <div className="absolute top-20 left-1/4 w-[300px] h-[300px] bg-cyan-500/8 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute top-20 right-1/4 w-[300px] h-[300px] bg-blue-500/8 rounded-full blur-[100px] pointer-events-none" />
+
+          <div className="relative z-10 container mx-auto max-w-5xl animate-fade-in">
+            <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 px-4 py-1.5 text-sm gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+              </span>
+              Ahora con Generación de Código IA
+            </Badge>
+
+            <h1 className="text-5xl md:text-7xl font-heading font-bold mb-6 leading-tight">
+              <span className="bg-gradient-to-r from-foreground via-primary to-cyan-400 bg-clip-text text-transparent">
+                Construye Aplicaciones
+              </span>
+              <br />
+              <span className="text-foreground">a la Velocidad del Pensamiento</span>
+            </h1>
+
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+              Transforma tus ideas en aplicaciones listas para producción con herramientas de desarrollo potenciadas por IA.
+              Sin complejidad, solo resultados.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+              <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg h-14 px-10 shadow-lg shadow-primary/25">
+                <Link to="/register">
+                  Comienza Gratis
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild className="text-lg h-14 px-10 border-border hover:border-primary/50">
+                <Link to="/dashboard">
+                  Ver Demo
+                </Link>
+              </Button>
             </div>
 
-            {/* Hero Image/Demo */}
-            <div className="mt-20 relative">
-              <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent z-10" />
-              <Card className="bg-card/50 border-border backdrop-blur-sm overflow-hidden">
-                <div className="p-8">
-                  <div className="bg-secondary/50 rounded-xl p-6 font-mono text-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-3 h-3 rounded-full bg-destructive" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                    </div>
-                    <div className="space-y-2 text-muted-foreground">
-                      <p><span className="text-primary">$</span> orion generate "modern dashboard with analytics"</p>
-                      <p className="text-foreground">✓ Creating project structure...</p>
-                      <p className="text-foreground">✓ Generating components...</p>
-                      <p className="text-foreground">✓ Optimizing performance...</p>
-                      <p className="text-primary">✨ Your project is ready!</p>
-                    </div>
+          </div>
+
+          {/* Terminal demo */}
+          <div className="relative z-10 container mx-auto max-w-4xl mt-20">
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-cyan-500/20 to-primary/20 rounded-2xl blur-sm" />
+              <Card className="relative bg-card/80 border-border backdrop-blur-sm overflow-hidden rounded-2xl">
+                <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-secondary/30">
+                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/80" />
+                  <span className="ml-2 text-xs text-muted-foreground font-mono">orion ~ terminal</span>
+                </div>
+                <div className="p-6 font-mono text-sm space-y-3">
+                  <p>
+                    <span className="text-primary">❯</span>
+                    <span className="text-muted-foreground ml-2">orion generate </span>
+                    <span className="text-cyan-400">"modern dashboard with analytics"</span>
+                  </p>
+                  <div className="space-y-1.5 pl-4 border-l-2 border-border">
+                    <p className="text-green-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Creando estructura del proyecto...
+                    </p>
+                    <p className="text-green-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Generando componentes UI...
+                    </p>
+                    <p className="text-green-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Optimizando rendimiento...
+                    </p>
+                    <p className="text-green-400 flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Configurando rutas y estado...
+                    </p>
                   </div>
+                  <p className="text-primary font-semibold">✨ ¡Tu proyecto está listo en 4.2s!</p>
                 </div>
               </Card>
             </div>
           </div>
         </section>
 
-        {/* Community Showcase Section */}
-        <CommunityShowcase />
-
-        {/* Features Section */}
-        <section className="py-20 px-4 bg-secondary/20">
-          <div className="container mx-auto max-w-6xl">
+        {/* ── Cómo funciona ── */}
+        <section className="py-24 px-4 bg-secondary/10 border-y border-border">
+          <div className="container mx-auto max-w-5xl">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-heading font-bold mb-4">
-                Everything you need to build faster
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 px-3 py-1">
+                Proceso simple
+              </Badge>
+              <h2 className="text-3xl md:text-4xl font-heading font-bold mb-3">
+                De la idea al producto en 3 pasos
               </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Professional tools designed for modern development workflows
+              <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                Sin curva de aprendizaje. Sin configuración tediosa.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {features.map((feature, idx) => (
-                <Card 
-                  key={feature.title} 
-                  className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
-                  style={{ animationDelay: `${idx * 0.1}s` }}
-                >
-                  <CardHeader>
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                      <feature.icon className="w-6 h-6 text-primary" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+              {/* Connecting line (desktop only) */}
+              <div className="hidden md:block absolute top-8 left-[calc(16.666%+1rem)] right-[calc(16.666%+1rem)] h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+
+              {steps.map((step) => (
+                <div key={step.number} className="flex flex-col items-center text-center group">
+                  <div className="relative mb-6">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/20 group-hover:border-primary/40 transition-all duration-300">
+                      <span className="text-2xl font-heading font-bold text-primary">{step.number}</span>
                     </div>
-                    <CardTitle className="text-xl">{feature.title}</CardTitle>
-                    <CardDescription className="text-base">
-                      {feature.description}
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
+                    <div className="absolute -inset-1 bg-primary/10 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{step.description}</p>
+                </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="py-20 px-4">
-          <div className="container mx-auto max-w-4xl">
-            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-              <CardContent className="p-12 text-center">
-                <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-                  Ready to build something amazing?
-                </h2>
-                <p className="text-xl text-muted-foreground mb-8">
-                  Join thousands of developers building the future with AI
-                </p>
-                <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg h-14 px-8">
-                  <Link to="/register">
-                    Get Started Now
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+        {/* ── Features bento ── */}
+        <section className="py-24 px-4">
+          <div className="container mx-auto max-w-6xl">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-5xl font-heading font-bold mb-4">
+                Todo lo que necesitas
+                <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent"> para construir más rápido</span>
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Herramientas profesionales diseñadas para flujos de trabajo de desarrollo moderno
+              </p>
+            </div>
+
+            {/* Bento grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+              {/* Feature grande: Generación IA */}
+              <Card className="lg:col-span-2 bg-gradient-to-br from-primary/10 via-card to-card border-primary/20 hover:border-primary/40 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 group overflow-hidden relative">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
+                <CardHeader className="pb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                    <Sparkles className="w-7 h-7 text-primary" />
+                  </div>
+                  <CardTitle className="text-2xl">Generación con IA</CardTitle>
+                  <CardDescription className="text-base leading-relaxed">
+                    Describe tu idea en lenguaje natural y nuestro motor de IA avanzado genera el código completo:
+                    componentes, rutas, estado, estilos y más. Lista para producción desde el primer minuto.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button size="sm" asChild className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/40">
+                    <Link to="/register">
+                      Probar ahora <ArrowRight className="ml-1.5 w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Editor en Vivo */}
+              <Card className="bg-card border-border hover:border-cyan-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10 group">
+                <CardHeader>
+                  <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Code2 className="w-6 h-6 text-cyan-400" />
+                  </div>
+                  <CardTitle className="text-lg">Editor en Vivo</CardTitle>
+                  <CardDescription>
+                    Edición en tiempo real con Monaco Editor y vista previa instantánea sin recargar.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Ultra Rápido */}
+              <Card className="bg-card border-border hover:border-yellow-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/10 group">
+                <CardHeader>
+                  <div className="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Zap className="w-6 h-6 text-yellow-400" />
+                  </div>
+                  <CardTitle className="text-lg">Ultra Rápido</CardTitle>
+                  <CardDescription>
+                    Genera y despliega tus aplicaciones en segundos. Más tiempo creando, menos configurando.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Seguridad Empresarial */}
+              <Card className="bg-card border-border hover:border-green-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 group">
+                <CardHeader>
+                  <div className="w-12 h-12 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Shield className="w-6 h-6 text-green-400" />
+                  </div>
+                  <CardTitle className="text-lg">Seguridad Empresarial</CardTitle>
+                  <CardDescription>
+                    Seguridad de nivel bancario para tus proyectos y datos. Cifrado end-to-end incluido.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Colaboración */}
+              <Card className="bg-card border-border hover:border-purple-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 group">
+                <CardHeader>
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Users className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <CardTitle className="text-lg">Colaboración en Equipo</CardTitle>
+                  <CardDescription>
+                    Trabaja junto a tu equipo de forma fluida. Proyectos compartidos en tiempo real.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+            </div>
           </div>
         </section>
 
-        {/* Community Projects Section */}
-        <section className="py-20 px-4 bg-secondary/20">
+        {/* ── Plantillas comunidad ── */}
+        <CommunityShowcase />
+
+        {/* ── CTA ── */}
+        <section className="py-28 px-4 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-cyan-500/5 pointer-events-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[350px] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+
+          <div className="container mx-auto max-w-3xl relative z-10 text-center">
+            <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 px-3 py-1">
+              Empieza hoy, gratis
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-heading font-bold mb-5 leading-tight">
+              ¿Listo para construir
+              <br />
+              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
+                algo increíble?
+              </span>
+            </h2>
+            <p className="text-xl text-muted-foreground mb-10 max-w-xl mx-auto">
+              Únete a miles de desarrolladores que ya están construyendo el futuro con IA. Sin tarjeta de crédito.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg h-14 px-10 shadow-lg shadow-primary/30">
+                <Link to="/register">
+                  Comenzar Gratis
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild className="text-lg h-14 px-10 hover:border-primary/50">
+                <Link to="/pricing">
+                  Ver Planes
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Proyectos de la comunidad ── */}
+        <section className="py-24 px-4 bg-secondary/10 border-t border-border">
           <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-16">
-              <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
-                🌟 Proyectos de la Comunidad
-              </Badge>
-              <h2 className="text-3xl md:text-5xl font-heading font-bold mb-4">
-                Creado por la comunidad
-              </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-6">
-                Explora proyectos increíbles construidos con Orion Builder
-              </p>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-14">
+              <div>
+                <Badge className="mb-3 bg-primary/10 text-primary border-primary/20 px-3 py-1">
+                  🌟 Comunidad
+                </Badge>
+                <h2 className="text-3xl md:text-4xl font-heading font-bold">
+                  Creado por la comunidad
+                </h2>
+                <p className="text-muted-foreground mt-2 max-w-md">
+                  Explora proyectos increíbles construidos con Orion Builder
+                </p>
+              </div>
               <Button
                 onClick={() => setUploadModalOpen(true)}
-                className="bg-primary hover:bg-primary/90 transition-all hover:scale-[1.05]"
+                className="bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 shrink-0"
               >
                 <Upload className="w-4 h-4 mr-2" />
                 Subir mi proyecto
@@ -347,10 +472,21 @@ const Index = () => {
             </div>
 
             {loadingProjects ? (
-              <div className="text-center py-16 text-muted-foreground">Cargando proyectos...</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border border-border bg-card animate-pulse">
+                    <div className="h-40 rounded-t-xl bg-secondary" />
+                    <div className="p-5 space-y-2">
+                      <div className="h-4 bg-secondary rounded w-2/3" />
+                      <div className="h-3 bg-secondary rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : communityProjects.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground space-y-2">
-                <p className="text-lg font-medium">Aún no hay proyectos publicados</p>
+              <div className="text-center py-20 text-muted-foreground space-y-3 border border-dashed border-border rounded-2xl">
+                <p className="text-4xl">🚀</p>
+                <p className="text-lg font-medium text-foreground">Aún no hay proyectos publicados</p>
                 <p className="text-sm">¡Sé el primero en compartir tu proyecto con la comunidad!</p>
               </div>
             ) : (
@@ -358,16 +494,15 @@ const Index = () => {
                 {communityProjects.map((project, idx) => (
                   <Card
                     key={idx}
-                    className="bg-card border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
-                    style={{ animationDelay: `${idx * 0.1}s` }}
+                    className="bg-card border-border hover:border-primary/40 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 cursor-pointer group overflow-hidden"
                   >
-                    <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform">
+                    <div className="h-44 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-300">
                       {project.image}
                     </div>
-                    <CardHeader>
+                    <CardHeader className="pb-2">
                       <CardTitle className="text-lg">{project.name}</CardTitle>
                       {project.author && (
-                        <CardDescription className="text-xs text-muted-foreground">
+                        <CardDescription className="text-xs">
                           por {project.author}
                         </CardDescription>
                       )}
@@ -377,16 +512,16 @@ const Index = () => {
                         {project.description}
                       </p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Heart className="w-3.5 h-3.5" /> {project.likes ?? 0}
+                        <span className="flex items-center gap-1.5">
+                          <Heart className="w-3.5 h-3.5 text-red-400" /> {project.likes ?? 0}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1.5">
                           <Eye className="w-3.5 h-3.5" /> {project.views ?? 0} vistas
                         </span>
                       </div>
                       <Button
                         variant="outline"
-                        className="w-full transition-all hover:scale-[1.02]"
+                        className="w-full hover:border-primary/50 hover:text-primary"
                         size="sm"
                         onClick={() => handleViewProject(project)}
                       >
@@ -399,10 +534,10 @@ const Index = () => {
             )}
 
             <div className="text-center mt-12">
-              <Button variant="outline" size="lg" asChild>
+              <Button variant="outline" size="lg" asChild className="gap-2 hover:border-primary/50">
                 <Link to="/community">
                   Ver todos los proyectos
-                  <ArrowRight className="ml-2 w-5 h-5" />
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
             </div>

@@ -17,17 +17,20 @@ export const USER_ROLES = {
 export const SUBSCRIPTION_TYPES = {
   FREE: 'free',
   PRO: 'pro',
+  BUSINESS: 'business',
   ENTERPRISE: 'enterprise',
 } as const;
 
-// Límites de créditos por plan (inspirado en modelo Lovable)
-// Free:       5 créditos/día  (máx 30/mes),  sin pool mensual
-// Pro:       10 créditos/día + 500 pool mensual
-// Enterprise: 50 créditos/día + 2000 pool mensual
+// Límites de créditos por plan
+// Free:       5 créditos/día,  sin pool mensual          ($0)
+// Pro:       20 créditos/día + 600 pool mensual           ($20/mes)
+// Business:  60 créditos/día + 1800 pool mensual         ($45/mes)
+// Enterprise: 200 créditos/día + 5000 pool (≈ ilimitado) (Platform fee)
 export const PLAN_LIMITS = {
-  free:       { daily: 5,  monthly: 0    },
-  pro:        { daily: 10, monthly: 500  },
-  enterprise: { daily: 50, monthly: 2000 },
+  free:       { daily: 5,   monthly: 0    },
+  pro:        { daily: 20,  monthly: 600  },
+  business:   { daily: 60,  monthly: 1800 },
+  enterprise: { daily: 200, monthly: 5000 },
 } as const;
 
 // Costo en créditos por operación de IA
@@ -42,6 +45,17 @@ export const CREDIT_COSTS = {
 
 export type CreditOperation = keyof typeof CREDIT_COSTS;
 export type PlanName = keyof typeof PLAN_LIMITS;
+
+// Capacidades por plan (fuente de verdad única)
+// maxProjects: 0 = ilimitado
+export const PLAN_FEATURES = {
+  free:       { maxProjects: 3,   publishCommunity: false, privateProjects: false, teamManagement: false },
+  pro:        { maxProjects: 0,   publishCommunity: true,  privateProjects: false, teamManagement: false },
+  business:   { maxProjects: 0,   publishCommunity: true,  privateProjects: true,  teamManagement: true  },
+  enterprise: { maxProjects: 0,   publishCommunity: true,  privateProjects: true,  teamManagement: true  },
+} as const;
+
+export type PlanFeature = keyof Omit<typeof PLAN_FEATURES['free'], 'maxProjects'>;
 
 export const PROJECT_TEMPLATES = {
   REACT: 'react',

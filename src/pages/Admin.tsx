@@ -10,8 +10,11 @@ import {
   Zap,
   Crown,
   Building2,
+  Briefcase,
   RefreshCw,
   AlertTriangle,
+  Activity,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +25,11 @@ interface ConsumerRow {
   plan: string; daily_remaining: number; daily_limit: number; consumed: number;
 }
 
+interface AiSystemStats {
+  queue: { active: number; queued: number };
+  cache: { size: number; hits: number; misses: number };
+}
+
 interface AdminStats {
   users: { total: number; newWeek: number; newMonth: number };
   plans: PlanRow[];
@@ -29,6 +37,7 @@ interface AdminStats {
   totalCreditsConsumedToday: number;
   recentSignups: SignupRow[];
   topConsumers: ConsumerRow[];
+  aiSystem?: AiSystemStats;
 }
 
 interface AdminResponse { success: boolean; data: AdminStats }
@@ -36,12 +45,14 @@ interface AdminResponse { success: boolean; data: AdminStats }
 const PLAN_COLORS: Record<string, string> = {
   free:       "bg-zinc-700 text-zinc-200",
   pro:        "bg-violet-700 text-violet-100",
+  business:   "bg-blue-700 text-blue-100",
   enterprise: "bg-amber-700 text-amber-100",
 };
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {
   free:       <Zap className="w-3 h-3 inline mr-1" />,
   pro:        <Crown className="w-3 h-3 inline mr-1" />,
+  business:   <Briefcase className="w-3 h-3 inline mr-1" />,
   enterprise: <Building2 className="w-3 h-3 inline mr-1" />,
 };
 
@@ -134,7 +145,7 @@ export default function Admin() {
                 icon={<DollarSign className="w-5 h-5 text-amber-400" />}
                 label="MRR estimado"
                 value={loading ? "…" : `$${stats?.mrr ?? 0}`}
-                sub="Pro × $29 + Ent × $99"
+                sub="Pro $20 · Biz $45 · Ent $99"
               />
               <KpiCard
                 icon={<Zap className="w-5 h-5 text-violet-400" />}
@@ -151,8 +162,8 @@ export default function Admin() {
                 <CardDescription>{totalUsers} usuarios en total</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  {(["free", "pro", "enterprise"] as const).map((plan) => {
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                  {(["free", "pro", "business", "enterprise"] as const).map((plan) => {
                     const count = planMap[plan] ?? 0;
                     const pct = totalUsers > 0 ? Math.round((count / totalUsers) * 100) : 0;
                     return (
@@ -257,6 +268,53 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* AI System */}
+            {stats?.aiSystem && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Activity className="w-4 h-4 text-violet-400" />
+                      Cola de IA
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex gap-6">
+                    <div>
+                      <p className="text-2xl font-bold font-mono text-primary">{stats.aiSystem.queue.active}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Activas</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold font-mono">{stats.aiSystem.queue.queued}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">En cola</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Database className="w-4 h-4 text-green-400" />
+                      Caché de prompts
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex gap-6">
+                    <div>
+                      <p className="text-2xl font-bold font-mono">{stats.aiSystem.cache.size}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Entradas</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold font-mono text-green-400">{stats.aiSystem.cache.hits}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Hits</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold font-mono text-red-400">{stats.aiSystem.cache.misses}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Misses</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
           </div>
         </main>

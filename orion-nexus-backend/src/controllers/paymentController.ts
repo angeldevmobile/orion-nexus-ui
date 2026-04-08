@@ -24,10 +24,14 @@ const getLS = () => {
   }
 };
 
-// Variant IDs por plan (configura estos en el .env)
+// Variant IDs por plan y período de facturación (configura estos en el .env)
+// Cada variante corresponde a un producto en Lemon Squeezy con su ciclo de facturación
 const PLAN_VARIANTS: Record<string, string> = {
-  pro: process.env.LS_VARIANT_PRO ?? '',
-  enterprise: process.env.LS_VARIANT_ENTERPRISE ?? '',
+  pro:               process.env.LS_VARIANT_PRO            ?? '',
+  pro_annual:        process.env.LS_VARIANT_PRO_ANNUAL      ?? '',
+  business:          process.env.LS_VARIANT_BUSINESS        ?? '',
+  business_annual:   process.env.LS_VARIANT_BUSINESS_ANNUAL ?? '',
+  enterprise:        process.env.LS_VARIANT_ENTERPRISE      ?? '',
 };
 
 const updateSubscription = async (userId: string, planName: string) => {
@@ -43,33 +47,45 @@ const updateSubscription = async (userId: string, planName: string) => {
   );
 
   // Inicializar / resetear créditos al nuevo plan
-  const validPlans = ['free', 'pro', 'enterprise'] as const;
-  const normalizedPlan = planName.toLowerCase() as typeof validPlans[number];
-  if (validPlans.includes(normalizedPlan)) {
+  const validPlans = ['free', 'pro', 'business', 'enterprise'] as const;
+  type ValidPlan = typeof validPlans[number];
+  const normalizedPlan = planName.toLowerCase() as ValidPlan;
+  if ((validPlans as readonly string[]).includes(normalizedPlan)) {
     await initializeCredits(userId, normalizedPlan);
   }
 };
 
 // POST /api/payments/checkout
 export const createCheckoutSession = asyncHandler(async (req: Request, res: Response) => {
-  const { planName } = req.body;
+  const { planName, billing } = req.body;          // billing: 'monthly' | 'annual'
   const userId = req.user?.id;
   const userEmail = req.user?.email;
 
   if (!userId) throw createError('Authentication required', HTTP_STATUS.UNAUTHORIZED);
 
-  const variantId = PLAN_VARIANTS[planName?.toLowerCase()];
-  if (!variantId) throw createError('Invalid plan name or variant not configured', HTTP_STATUS.BAD_REQUEST);
+  const isAnnual = billing === 'annual';
+  const variantKey = isAnnual
+    ? `${planName?.toLowerCase()}_annual`
+    : planName?.toLowerCase();
+
+  const variantId = PLAN_VARIANTS[variantKey ?? ''];
+  if (!variantId) throw createError('Invalid plan/billing combination or variant not configured', HTTP_STATUS.BAD_REQUEST);
 
   const storeId = process.env.LS_STORE_ID;
   if (!storeId) throw createError('LS_STORE_ID not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
 
   getLS();
 
+  const normalizedPlan = planName.toLowerCase();
+
   const checkout = await createCheckout(storeId, variantId, {
     checkoutData: {
       email: userEmail ?? undefined,
-      custom: { userId, planName: planName.toLowerCase() },
+      custom: {
+        userId,
+        planName: normalizedPlan,
+        billing: isAnnual ? 'annual' : 'monthly',
+      },
     },
     checkoutOptions: {
       embed: false,
@@ -77,8 +93,8 @@ export const createCheckoutSession = asyncHandler(async (req: Request, res: Resp
       logo: true,
     },
     productOptions: {
-      redirectUrl: `${process.env.FRONTEND_URL}/dashboard?payment=success`,
-      receiptButtonText: 'Ir al Dashboard',
+      redirectUrl: `${process.env.FRONTEND_URL}/pricing?payment=success&plan=${normalizedPlan}`,
+      receiptButtonText: 'Ver mis planes',
     },
   });
 
@@ -120,6 +136,7 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
   const { meta, data } = req.body;
   const eventName: string = meta?.event_name ?? '';
 
+  // ── Suscripción o pago único creado ──────────────────────────────────────
   if (eventName === 'subscription_created' || eventName === 'order_created') {
     const custom = meta?.custom_data ?? data?.attributes?.first_order_item?.custom_data ?? {};
     const userId: string = custom.userId ?? custom.user_id;
@@ -131,9 +148,9 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
         if (subId) {
           getLS();
           const sub = await getSubscription(subId);
-          if (sub.data?.data.attributes.status === 'active' || sub.data?.data.attributes.status === 'on_trial') {
+          const status = sub.data?.data.attributes.status;
+          if (status === 'active' || status === 'on_trial') {
             await updateSubscription(userId, planName);
-            // Guardar el ID de suscripción para poder cancelarla después
             await pool.query(
               `UPDATE users
                SET preferences = jsonb_set(
@@ -147,12 +164,60 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
           }
         }
       } else {
+        // order_created: pago único (no suscripción)
         await updateSubscription(userId, planName);
       }
     }
   }
 
-  // Suscripción expirada definitivamente → bajar a free
+  // ── Cambio de plan (upgrade / downgrade) ─────────────────────────────────
+  if (eventName === 'subscription_updated') {
+    const subId = data?.id as string | undefined;
+    if (subId) {
+      const custom = meta?.custom_data ?? {};
+      const userId: string = custom.userId ?? custom.user_id;
+      const planName: string = custom.planName ?? custom.plan_name;
+      const lsStatus: string = data?.attributes?.status ?? '';
+
+      if (userId && planName && (lsStatus === 'active' || lsStatus === 'on_trial')) {
+        await updateSubscription(userId, planName);
+      }
+
+      // Si LS marca la suscripción como cancelada inmediatamente → bajar a free
+      if (lsStatus === 'cancelled' || lsStatus === 'expired') {
+        const userResult = await pool.query(
+          `SELECT id FROM users WHERE preferences->>'ls_subscription_id' = $1`,
+          [subId]
+        );
+        if (userResult.rows.length > 0) {
+          const uid: string = userResult.rows[0].id.toString();
+          await updateSubscription(uid, 'free');
+        }
+      }
+    }
+  }
+
+  // ── Suscripción cancelada inmediatamente ──────────────────────────────────
+  if (eventName === 'subscription_cancelled') {
+    const subId = data?.id as string | undefined;
+    if (subId) {
+      const endsAt: string | null = data?.attributes?.ends_at ?? null;
+      // Solo marcar como pending_cancellation; cuando expire, subscription_expired baja a free
+      await pool.query(
+        `UPDATE users
+         SET preferences = preferences
+           || jsonb_build_object(
+                'subscription_status', 'pending_cancellation',
+                'ls_subscription_ends_at', $2::text
+              ),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE preferences->>'ls_subscription_id' = $1`,
+        [subId, endsAt ?? '']
+      );
+    }
+  }
+
+  // ── Suscripción expirada definitivamente → bajar a free ───────────────────
   if (eventName === 'subscription_expired') {
     const subId = data?.id as string | undefined;
     if (subId) {
@@ -165,9 +230,10 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
         await updateSubscription(userId, 'free');
         await pool.query(
           `UPDATE users
-           SET preferences = preferences - 'ls_subscription_id'
-                                        - 'ls_subscription_ends_at'
-                                        - 'subscription_status',
+           SET preferences = preferences
+             - 'ls_subscription_id'
+             - 'ls_subscription_ends_at'
+             - 'subscription_status',
                updated_at = CURRENT_TIMESTAMP
            WHERE id = $1`,
           [userId]

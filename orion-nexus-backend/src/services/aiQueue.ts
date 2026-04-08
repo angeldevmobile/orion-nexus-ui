@@ -5,6 +5,7 @@ import type { PlanName } from '../utils/constants';
 const USER_CONCURRENCY: Record<PlanName, number> = {
   free:       parseInt(process.env.AI_QUEUE_USER_FREE       || '2', 10),
   pro:        parseInt(process.env.AI_QUEUE_USER_PRO        || '4', 10),
+  business:   parseInt(process.env.AI_QUEUE_USER_BUSINESS   || '6', 10),
   enterprise: parseInt(process.env.AI_QUEUE_USER_ENTERPRISE || '8', 10),
 };
 

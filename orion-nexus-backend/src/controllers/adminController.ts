@@ -68,16 +68,18 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
           id,
           username,
           email,
-          COALESCE(preferences->>'subscription', 'free')   AS plan,
+          COALESCE(preferences->>'subscription', 'free')              AS plan,
           COALESCE((preferences->>'credits_daily_remaining')::int, 5) AS daily_remaining,
           CASE COALESCE(preferences->>'subscription', 'free')
-            WHEN 'pro'        THEN 10
-            WHEN 'enterprise' THEN 50
+            WHEN 'pro'        THEN 20
+            WHEN 'business'   THEN 60
+            WHEN 'enterprise' THEN 200
             ELSE 5
-          END                                               AS daily_limit,
+          END                                                          AS daily_limit,
           CASE COALESCE(preferences->>'subscription', 'free')
-            WHEN 'pro'        THEN 10
-            WHEN 'enterprise' THEN 50
+            WHEN 'pro'        THEN 20
+            WHEN 'business'   THEN 60
+            WHEN 'enterprise' THEN 200
             ELSE 5
           END - COALESCE((preferences->>'credits_daily_remaining')::int, 5) AS consumed
         FROM users
@@ -90,8 +92,9 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
         SELECT
           SUM(
             CASE COALESCE(preferences->>'subscription', 'free')
-              WHEN 'pro'        THEN 10
-              WHEN 'enterprise' THEN 50
+              WHEN 'pro'        THEN 20
+              WHEN 'business'   THEN 60
+              WHEN 'enterprise' THEN 200
               ELSE 5
             END - COALESCE((preferences->>'credits_daily_remaining')::int, 5)
           ) AS total_consumed
@@ -99,14 +102,15 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
       `),
     ]);
 
-  // Calcular MRR estimado
+  // Calcular MRR estimado (precios mensuales base)
   const planMap: Record<string, number> = {};
   for (const row of plansResult.rows) {
     planMap[row.plan] = parseInt(row.count, 10);
   }
   const mrr =
-    (planMap['pro'] ?? 0) * 29 +
-    (planMap['enterprise'] ?? 0) * 99;
+    (planMap['pro']        ?? 0) * 20 +
+    (planMap['business']   ?? 0) * 45 +
+    (planMap['enterprise'] ?? 0) * 99; // enterprise usa precio base estimado
 
   const totals = totalsResult.rows[0];
 

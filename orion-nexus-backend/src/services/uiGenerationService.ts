@@ -312,7 +312,7 @@ export async function generateReactComponent(
   prompt: string,
   _context?: ChatContext,
   userId?: string,
-  userPlan: 'free' | 'pro' | 'enterprise' = 'free'
+  userPlan: 'free' | 'pro' | 'business' | 'enterprise' = 'free'
 ): Promise<GeneratedComponentResult> {
   const enhancedPrompt = `
 Eres un experto en UI/UX que genera componentes React + TypeScript + Tailwind CSS de calidad premium (estilo lovable.dev / shadcn/ui oscuro).

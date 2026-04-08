@@ -37,7 +37,7 @@ passport.deserializeUser(async (id: string, done) => {
       id: user.id.toString(),
       email: user.email,
       role: user.role,
-      plan: (rawPlan === 'pro' || rawPlan === 'enterprise' ? rawPlan : 'free') as 'free' | 'pro' | 'enterprise',
+      plan: (['pro', 'business', 'enterprise'].includes(rawPlan) ? rawPlan : 'free') as 'free' | 'pro' | 'business' | 'enterprise',
     };
 
     done(null, expressUser);
@@ -85,7 +85,7 @@ passport.use(
           id: user.id.toString(),
           email: user.email,
           role: user.role,
-          plan: (rawPlan === 'pro' || rawPlan === 'enterprise' ? rawPlan : 'free') as 'free' | 'pro' | 'enterprise',
+          plan: (['pro', 'business', 'enterprise'].includes(rawPlan) ? rawPlan : 'free') as 'free' | 'pro' | 'business' | 'enterprise',
         };
 
         return done(null, expressUser);

@@ -13,6 +13,7 @@ import {
   Rocket,
   Upload,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";

@@ -59,7 +59,7 @@ class AIService {
     return streamResponse(message, options, onChunk);
   }
 
-  generateReactComponent(prompt: string, context?: import('../types/ai').ChatContext, userId?: string, userPlan: 'free' | 'pro' | 'enterprise' = 'free') {
+  generateReactComponent(prompt: string, context?: import('../types/ai').ChatContext, userId?: string, userPlan: 'free' | 'pro' | 'business' | 'enterprise' = 'free') {
     return generateReactComponent(prompt, context, userId, userPlan);
   }
 

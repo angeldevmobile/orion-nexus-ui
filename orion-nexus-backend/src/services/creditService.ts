@@ -73,9 +73,8 @@ export async function consumeCredits(userId: string, operation: CreditOperation)
   const cost = CREDIT_COSTS[operation];
   const status = await getCreditStatus(userId);
 
-  // Enterprise con monthly ilimitado no necesita verificación
-  if (status.plan === 'enterprise' && status.monthlyLimit >= 2000) {
-    // Igual descontamos para tracking, pero no bloqueamos
+  // Enterprise: se consume para tracking pero nunca se bloquea
+  if (status.plan === 'enterprise') {
     await _deductCredits(userId, cost, status);
     return true;
   }

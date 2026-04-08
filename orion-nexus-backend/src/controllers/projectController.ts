@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
-import { HTTP_STATUS } from '../utils/constants';
+import { HTTP_STATUS, PLAN_FEATURES } from '../utils/constants';
 import { ApiResponse, PaginationQuery } from '../types/api';
 import { CreateProjectRequest, UpdateProjectRequest } from '../types/project';
 import { asyncHandler, createError } from '../middleware/errorHandler';
@@ -9,6 +9,39 @@ import { emailService } from '../services/emailService';
 // Crear proyecto
 export const createProject = asyncHandler(async (req: Request, res: Response) => {
   const { name, description, settings, isPublic }: CreateProjectRequest = req.body;
+  const plan = req.user?.plan ?? 'free';
+  const features = PLAN_FEATURES[plan];
+
+  // Verificar límite de proyectos activos (Free: máx 3)
+  if (features.maxProjects > 0) {
+    const countResult = await pool.query(
+      `SELECT COUNT(*) AS total FROM projects WHERE owner_id = $1`,
+      [req.user?.id]
+    );
+    const total = parseInt(countResult.rows[0].total, 10);
+    if (total >= features.maxProjects) {
+      throw createError(
+        `Tu plan ${plan} permite un máximo de ${features.maxProjects} proyectos activos. Actualiza tu plan para crear más.`,
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+  }
+
+  // Verificar si puede hacer el proyecto público (publicar en comunidad)
+  if (isPublic && !features.publishCommunity) {
+    throw createError(
+      'Publicar proyectos en la comunidad requiere el plan Pro o superior.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  // Verificar si puede hacer el proyecto privado con acceso restringido
+  if (isPublic === false && !features.privateProjects) {
+    throw createError(
+      'Los proyectos privados requieren el plan Business o superior.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
 
   const files = [{
     name: 'index.js',
@@ -224,6 +257,25 @@ export const updateProject = asyncHandler(async (req: Request, res: Response) =>
   }
   if (checkResult.rows[0].owner_id !== parseInt(req.user?.id || '0')) {
     throw createError('Only project owner can update', HTTP_STATUS.FORBIDDEN);
+  }
+
+  // Verificar restricciones de plan al cambiar visibilidad
+  if (updates.isPublic !== undefined) {
+    const plan = req.user?.plan ?? 'free';
+    const features = PLAN_FEATURES[plan];
+
+    if (updates.isPublic === true && !features.publishCommunity) {
+      throw createError(
+        'Publicar proyectos en la comunidad requiere el plan Pro o superior.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+    if (updates.isPublic === false && !features.privateProjects) {
+      throw createError(
+        'Los proyectos privados requieren el plan Business o superior.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
   }
 
   const updateFields: string[] = [];

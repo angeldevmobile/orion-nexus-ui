@@ -6,7 +6,7 @@ export interface GenerateResponseOptions {
   chatHistory?: ChatMessage[];
   context?: ChatContext;
   userId?: string;
-  userPlan?: 'free' | 'pro' | 'enterprise';
+  userPlan?: 'free' | 'pro' | 'business' | 'enterprise';
 }
 
 export interface GenerateCodeOptions {
@@ -16,7 +16,7 @@ export interface GenerateCodeOptions {
   context?: ChatContext;
   returnJson?: boolean;
   userId?: string;
-  userPlan?: 'free' | 'pro' | 'enterprise';
+  userPlan?: 'free' | 'pro' | 'business' | 'enterprise';
 }
 
 export type GeneratedComponentResult = {

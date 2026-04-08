@@ -3,7 +3,7 @@ export interface UserPreferences {
   language: string;
   notifications: boolean;
   fontSize?: number;
-  subscription?: 'free' | 'pro' | 'enterprise';
+  subscription?: 'free' | 'pro' | 'business' | 'enterprise';
   // Créditos de IA
   credits_daily_remaining?: number;
   credits_monthly_remaining?: number;
