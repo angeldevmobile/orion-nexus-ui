@@ -367,6 +367,185 @@ class EmailService {
     });
   }
 
+  async sendEmailVerification(email: string, name: string, verificationToken: string): Promise<void> {
+    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { margin: 0; padding: 32px; background: #04060d; }
+          .container { max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0F172A; border-radius: 16px; overflow: hidden; }
+          .header { background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #67e8f9 100%); padding: 48px 32px; text-align: center; color: white; }
+          .content { padding: 40px 32px; background: #1e293b; color: #e2e8f0; }
+          .button { display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); color: white; text-decoration: none; border-radius: 12px; margin: 24px 0; font-weight: 600; font-size: 16px; box-shadow: 0 8px 25px rgba(8,145,178,0.3); }
+          .footer { padding: 24px 32px; text-align: center; color: #64748b; font-size: 13px; background: #0f172a; }
+          .badge { display: inline-block; background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.3); color: #06b6d4; border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div style="width:64px;height:64px;margin:0 auto 16px;background:rgba(255,255,255,0.1);border-radius:16px;display:flex;align-items:center;justify-content:center;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.59a16 16 0 0 0 6.29 6.29l.96-.85a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="white" stroke-width="2"/></svg>
+            </div>
+            <h1 style="margin:0;font-size:32px;font-weight:700;">Verifica tu email</h1>
+            <p style="margin:10px 0 0;font-size:16px;opacity:0.9;">Orion Builder — Un paso mas</p>
+          </div>
+          <div class="content">
+            <span class="badge">Verificacion requerida</span>
+            <h2 style="color:#06b6d4;margin-top:0;font-size:26px;">Hola, ${name}!</h2>
+            <p style="font-size:16px;line-height:1.7;">Gracias por registrarte en <strong style="color:#06b6d4;">Orion Builder</strong>. Para activar tu cuenta y acceder a todas las funciones, confirma tu direccion de email haciendo clic en el boton:</p>
+
+            <div style="text-align:center;margin:36px 0;">
+              <a href="${verifyUrl}" class="button">Verificar mi email</a>
+            </div>
+
+            <div style="background:#334155;border-radius:12px;padding:20px;border-left:4px solid #f59e0b;margin:24px 0;">
+              <p style="margin:0;font-size:14px;color:#fbbf24;font-weight:600;">Importante</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#94a3b8;line-height:1.6;">Este enlace expira en <strong style="color:#e2e8f0;">24 horas</strong>. Si no creaste esta cuenta, ignora este email.</p>
+            </div>
+
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:16px;margin-top:24px;">
+              <p style="margin:0 0 6px;font-size:12px;color:#64748b;">Si el boton no funciona, copia este enlace:</p>
+              <p style="word-break:break-all;color:#06b6d4;font-family:monospace;font-size:12px;margin:0;padding:10px;background:#0f172a;border-radius:6px;">${verifyUrl}</p>
+            </div>
+          </div>
+          <div class="footer">
+            <p style="margin:0 0 4px;">© 2026 Orion Builder. Construyendo el futuro del desarrollo.</p>
+            <p style="margin:0;font-size:11px;">Recibiste este email porque te registraste en nuestra plataforma.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Verifica tu email — Orion Builder',
+      html,
+      text: `Hola ${name}! Verifica tu email en Orion Builder: ${verifyUrl} (expira en 24 horas)`
+    });
+  }
+
+  async sendLoginNotification(email: string, name: string, loginDate: string, userAgent: string): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { margin: 0; padding: 32px; background: #04060d; }
+          .container { max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0F172A; border-radius: 16px; overflow: hidden; }
+          .header { background: linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%); padding: 36px 32px; text-align: center; color: white; }
+          .content { padding: 36px 32px; background: #1e293b; color: #e2e8f0; }
+          .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #334155; font-size: 14px; }
+          .footer { padding: 24px 32px; text-align: center; color: #64748b; font-size: 13px; background: #0f172a; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div style="width:56px;height:56px;margin:0 auto 14px;background:rgba(255,255,255,0.1);border-radius:14px;display:flex;align-items:center;justify-content:center;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h1 style="margin:0;font-size:26px;font-weight:700;">Nuevo inicio de sesion</h1>
+            <p style="margin:8px 0 0;font-size:14px;opacity:0.8;">Orion Builder — Alerta de seguridad</p>
+          </div>
+          <div class="content">
+            <p style="font-size:16px;line-height:1.7;margin-top:0;">Hola <strong style="color:#93c5fd;">${name}</strong>, detectamos un nuevo inicio de sesion en tu cuenta.</p>
+
+            <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px;margin:24px 0;">
+              <div class="info-row">
+                <span style="color:#64748b;">Fecha y hora</span>
+                <span style="color:#e2e8f0;font-weight:500;">${loginDate}</span>
+              </div>
+              <div class="info-row" style="border-bottom:none;">
+                <span style="color:#64748b;">Dispositivo</span>
+                <span style="color:#e2e8f0;font-weight:500;max-width:260px;text-align:right;font-size:13px;">${userAgent}</span>
+              </div>
+            </div>
+
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:20px;margin:24px 0;">
+              <p style="margin:0;font-size:15px;color:#fca5a5;font-weight:600;">No fuiste tu?</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#94a3b8;line-height:1.6;">Cambia tu contrasena inmediatamente desde <a href="${process.env.FRONTEND_URL}/settings" style="color:#60a5fa;">Configuracion</a> o solicita un <a href="${process.env.FRONTEND_URL}/login" style="color:#60a5fa;">restablecimiento de contrasena</a>.</p>
+            </div>
+
+            <p style="font-size:13px;color:#64748b;line-height:1.6;">Si fuiste tu, puedes ignorar este mensaje. Te enviamos esto para mantener tu cuenta segura.</p>
+          </div>
+          <div class="footer">
+            <p style="margin:0 0 4px;">© 2026 Orion Builder.</p>
+            <p style="margin:0;font-size:11px;">Para desactivar estas alertas, ve a <a href="${process.env.FRONTEND_URL}/settings" style="color:#06b6d4;">Configuracion → Notificaciones</a>.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Nuevo inicio de sesion en tu cuenta — Orion Builder',
+      html,
+      text: `Hola ${name}, nuevo inicio de sesion detectado el ${loginDate} desde ${userAgent}. Si no fuiste tu, cambia tu contrasena en ${process.env.FRONTEND_URL}/settings`
+    });
+  }
+
+  async sendPasswordChangedNotification(email: string, name: string, changedAt: string): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { margin: 0; padding: 32px; background: #04060d; }
+          .container { max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0F172A; border-radius: 16px; overflow: hidden; }
+          .header { background: linear-gradient(135deg, #065f46 0%, #059669 100%); padding: 36px 32px; text-align: center; color: white; }
+          .content { padding: 36px 32px; background: #1e293b; color: #e2e8f0; }
+          .footer { padding: 24px 32px; text-align: center; color: #64748b; font-size: 13px; background: #0f172a; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div style="width:56px;height:56px;margin:0 auto 14px;background:rgba(255,255,255,0.1);border-radius:14px;display:flex;align-items:center;justify-content:center;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="white" stroke-width="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="white" stroke-width="2"/><circle cx="12" cy="16" r="1" fill="white"/></svg>
+            </div>
+            <h1 style="margin:0;font-size:26px;font-weight:700;">Contrasena actualizada</h1>
+            <p style="margin:8px 0 0;font-size:14px;opacity:0.8;">Orion Builder — Confirmacion de seguridad</p>
+          </div>
+          <div class="content">
+            <p style="font-size:16px;line-height:1.7;margin-top:0;">Hola <strong style="color:#6ee7b7;">${name}</strong>, tu contrasena fue cambiada exitosamente.</p>
+
+            <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px;margin:24px 0;">
+              <p style="margin:0;font-size:13px;color:#64748b;">Fecha y hora del cambio</p>
+              <p style="margin:6px 0 0;font-size:15px;color:#e2e8f0;font-weight:500;">${changedAt}</p>
+            </div>
+
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:12px;padding:20px;margin:24px 0;">
+              <p style="margin:0;font-size:15px;color:#fca5a5;font-weight:600;">No realizaste este cambio?</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#94a3b8;line-height:1.6;">Contacta a soporte inmediatamente o solicita un nuevo <a href="${process.env.FRONTEND_URL}/login" style="color:#60a5fa;">restablecimiento de contrasena</a> para asegurar tu cuenta.</p>
+            </div>
+
+            <p style="font-size:13px;color:#64748b;">Si fuiste tu quien realizo este cambio, no necesitas hacer nada mas. Tu cuenta esta segura.</p>
+          </div>
+          <div class="footer">
+            <p style="margin:0;">© 2026 Orion Builder. Construyendo el futuro del desarrollo.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Tu contrasena fue cambiada — Orion Builder',
+      html,
+      text: `Hola ${name}, tu contrasena de Orion Builder fue cambiada el ${changedAt}. Si no fuiste tu, contacta soporte o ve a ${process.env.FRONTEND_URL}/login`
+    });
+  }
+
   async sendProjectInviteEmail(email: string, projectName: string, inviterName: string): Promise<void> {
     const html = `
       <!DOCTYPE html>

@@ -45,8 +45,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const result = await pool.query(insertQuery, [username, email, hashedPassword]);
   const user = result.rows[0];
 
-  // Enviar correo de bienvenida
-  await emailService.sendWelcomeEmail(user.email, user.username);
+  // Generar token de verificacion de email
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  await pool.query(
+    'UPDATE users SET email_verification_token = $1 WHERE id = $2',
+    [verificationToken, user.id]
+  );
+
+  // Enviar email de verificacion (reemplaza el de bienvenida)
+  await emailService.sendEmailVerification(user.email, user.username, verificationToken);
 
   // Inicializar créditos del plan free
   try {
@@ -106,6 +113,12 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     email: user.email,
     role: user.role
   });
+
+  // Notificacion de login (fire-and-forget, no bloquea la respuesta)
+  const loginDate = new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota', dateStyle: 'full', timeStyle: 'short' });
+  const rawUA = req.headers['user-agent'] || 'Dispositivo desconocido';
+  const userAgent = rawUA.length > 80 ? rawUA.substring(0, 80) + '...' : rawUA;
+  emailService.sendLoginNotification(user.email, user.username, loginDate, userAgent).catch(() => {});
 
   const response: ApiResponse<AuthResponse> = {
     success: true,
@@ -246,13 +259,41 @@ export const requestPasswordReset = asyncHandler(async (req: Request, res: Respo
   });
 });
 
+// Verificar email con token
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.query as { token: string };
+
+  if (!token) {
+    throw createError('Token is required', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const userResult = await pool.query(
+    'SELECT id, username, email FROM users WHERE email_verification_token = $1 AND email_verified = false',
+    [token]
+  );
+  if (userResult.rows.length === 0) {
+    throw createError('Invalid or already used verification token', HTTP_STATUS.BAD_REQUEST);
+  }
+  const user = userResult.rows[0];
+
+  await pool.query(
+    'UPDATE users SET email_verified = true, email_verification_token = NULL WHERE id = $1',
+    [user.id]
+  );
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Email verified successfully'
+  });
+});
+
 // Restablecer contraseña usando el token
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   const { token, newPassword } = req.body;
 
   // Buscar usuario por token y verificar expiración
   const userResult = await pool.query(
-    'SELECT id FROM users WHERE reset_token = $1 AND reset_token_expires > NOW()',
+    'SELECT id, username, email FROM users WHERE reset_token = $1 AND reset_token_expires > NOW()',
     [token]
   );
   if (userResult.rows.length === 0) {
@@ -268,6 +309,10 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
     'UPDATE users SET password = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2',
     [hashedPassword, user.id]
   );
+
+  // Notificacion de cambio de contrasena (fire-and-forget)
+  const changedAt = new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota', dateStyle: 'full', timeStyle: 'short' });
+  emailService.sendPasswordChangedNotification(user.email, user.username, changedAt).catch(() => {});
 
   res.status(HTTP_STATUS.OK).json({
     success: true,
@@ -310,6 +355,13 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
     'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
     [hashedPassword, req.user.id]
   );
+
+  // Notificacion de cambio de contrasena (fire-and-forget)
+  const changedAt = new Date().toLocaleString('es-ES', { timeZone: 'America/Bogota', dateStyle: 'full', timeStyle: 'short' });
+  const userEmail = await pool.query('SELECT email, username FROM users WHERE id = $1', [req.user.id]);
+  if (userEmail.rows.length > 0) {
+    emailService.sendPasswordChangedNotification(userEmail.rows[0].email, userEmail.rows[0].username, changedAt).catch(() => {});
+  }
 
   return res.status(HTTP_STATUS.OK).json({ success: true, message: 'Password changed successfully' });
 });

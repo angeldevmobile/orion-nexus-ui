@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getProfile, updateProfile, changePassword, disconnectGithub } from '../controllers/authController';
+import { register, login, getProfile, updateProfile, changePassword, disconnectGithub, verifyEmail } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 import { validateRegister, validateLogin } from '../middleware/validation';
 import { requestPasswordReset, resetPassword } from '../controllers/authController';
@@ -34,6 +34,11 @@ router.put('/profile', authenticateToken, updateProfile);
 // @desc    Change password (authenticated)
 // @access  Private
 router.put('/change-password', authenticateToken, changePassword);
+
+// @route   GET /api/auth/verify-email
+// @desc    Verify email with token
+// @access  Public
+router.get('/verify-email', verifyEmail);
 
 // @route   POST /api/auth/request-password-reset
 // @desc    Send password reset email

@@ -62,6 +62,11 @@ export class AuthService {
     const response = await apiService.post('/auth/request-password-reset', data);
     return response;
   }
+
+  async resetPassword(data: { token: string; newPassword: string }) {
+    const response = await apiService.post('/auth/reset-password', data);
+    return response;
+  }
 }
 
 export const authService = new AuthService();

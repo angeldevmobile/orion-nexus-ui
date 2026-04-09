@@ -31,6 +31,22 @@ async function migrate() {
     `);
     console.log('OK: reset_token_expires column added');
 
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
+    `);
+    console.log('OK: email_verified column added');
+
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255);
+    `);
+    console.log('OK: email_verification_token column added');
+
+    // Marcar como verificados a los usuarios existentes para no romper cuentas actuales
+    await pool.query(`
+      UPDATE users SET email_verified = true WHERE email_verified IS NULL OR email_verified = false AND created_at < NOW() - INTERVAL '1 minute';
+    `);
+    console.log('OK: existing users marked as verified');
+
     // Table for workspace/team invites
     await pool.query(`
       CREATE TABLE IF NOT EXISTS workspace_invites (

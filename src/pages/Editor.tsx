@@ -36,6 +36,8 @@ import MonacoEditor from "../editor/MonacoEditor";
 import { fileManager } from "@/editor/FileManager";
 import { FileNode } from "@/editor/FileExplorer";
 import { dumpFsToJson } from "@/editor/fileSystem/lightningFsAdapter";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import {
 	initWebContainer,
 	installDependencies,
@@ -74,6 +76,32 @@ export default function Editor() {
 	const editorFontSize = prefs?.editorFontSize
 		? Number(prefs.editorFontSize)
 		: 14;
+
+	const [exporting, setExporting] = useState(false);
+	const [exportName, setExportName] = useState("mi-proyecto");
+
+	const handleExportZip = async () => {
+		setExporting(true);
+		try {
+			const allFiles = await dumpFsToJson();
+			const zip = new JSZip();
+			for (const [filePath, content] of Object.entries(allFiles)) {
+				// Quitar la barra inicial "/" para que el ZIP tenga rutas relativas
+				const relativePath = filePath.replace(/^\//, "");
+				if (relativePath) zip.file(relativePath, content);
+			}
+			const blob = await zip.generateAsync({ type: "blob" });
+			const projectName = exportName.trim() || "mi-proyecto";
+			saveAs(blob, `${projectName}.zip`);
+			toast({ title: "Proyecto exportado", description: "El ZIP se descargó correctamente." });
+			setConfigOpen(false);
+		} catch (err) {
+			console.error("Export error:", err);
+			toast({ title: "Error al exportar", description: "No se pudo generar el ZIP.", variant: "destructive" });
+		} finally {
+			setExporting(false);
+		}
+	};
 	const editorTheme = prefs?.editorTheme
 		? String(prefs.editorTheme)
 		: "VS Code Dark";
@@ -514,6 +542,15 @@ export default function Editor() {
 								</DialogHeader>
 
 								<div className="space-y-6 py-4">
+									<div className="space-y-2">
+										<Label className="text-base font-semibold">Nombre del proyecto</Label>
+										<input
+											className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+											value={exportName}
+											onChange={(e) => setExportName(e.target.value)}
+											placeholder="mi-proyecto"
+										/>
+									</div>
 									<div className="space-y-4">
 										<Label className="text-base font-semibold">
 											Exportar como:
@@ -581,9 +618,13 @@ export default function Editor() {
 									</div>
 
 									<div className="pt-4 border-t border-border flex gap-3">
-										<Button className="flex-1 bg-primary hover:bg-primary/90">
+										<Button
+											className="flex-1 bg-primary hover:bg-primary/90"
+											onClick={handleExportZip}
+											disabled={exporting}
+										>
 											<Download className="w-4 h-4 mr-2" />
-											Exportar Proyecto
+											{exporting ? "Generando ZIP…" : "Exportar Proyecto"}
 										</Button>
 										<Button
 											variant="outline"

@@ -29,6 +29,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiService } from "@/service/ApiService";
 import MonacoEditor from "../editor/MonacoEditor";
 import { dumpFsToJson } from "@/editor/fileSystem/lightningFsAdapter";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import { buildProject } from "@/editor/runtime/orionContainer";
 import ReactMarkdown from "react-markdown";
 import type { UIComponentData } from "@/service/AiService";
@@ -400,6 +402,10 @@ export default function AIChat() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const userPlan = user?.preferences?.subscription ?? (user as unknown as { plan?: string })?.plan ?? "free";
+  const canPublish = userPlan === "pro" || userPlan === "business" || userPlan === "enterprise";
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportName, setExportName] = useState("mi-proyecto");
   const [chatVisible, setChatVisible] = useState(true);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -456,6 +462,15 @@ export default function AIChat() {
   };
 
   const handlePublish = async (type: "template" | "community") => {
+    if (type === "community" && !canPublish) {
+      toast({
+        title: "Plan insuficiente",
+        description: "Publicar proyectos en la comunidad requiere el plan Pro o superior. Actualiza tu plan en Precios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setPublishing(true);
     try {
       const snapshot = await import("@/editor/fileSystem/lightningFsAdapter")
@@ -526,20 +541,23 @@ export default function AIChat() {
   };
 
   const handleExport = async () => {
+    const name = exportName.trim() || "mi-proyecto";
     try {
       const allFiles = await dumpFsToJson();
-      const blob = new Blob([JSON.stringify(allFiles, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'orion-project.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: 'Exportado', description: `${Object.keys(allFiles).length} archivos exportados` });
+      const zip = new JSZip();
+      for (const [filePath, content] of Object.entries(allFiles)) {
+        const relativePath = filePath.replace(/^\//, "");
+        if (relativePath) zip.file(relativePath, content);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      saveAs(blob, `${name}.zip`);
+      toast({ title: 'Exportado', description: `${Object.keys(allFiles).length} archivos exportados como ZIP` });
+      setExportDialogOpen(false);
     } catch {
       toast({ title: 'Error', description: 'No se pudo exportar', variant: 'destructive' });
     }
   };
+
 
   const handleOpenInNewTab = async () => {
     if (buildingPreview) return;
@@ -762,7 +780,7 @@ export default function AIChat() {
 
             <Separator orientation="vertical" className="h-6" />
 
-            <Button variant="outline" size="sm" onClick={handleExport} className="text-xs h-7">
+            <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} className="text-xs h-7">
               <Download className="w-3 h-3 mr-1" />
               Exportar
             </Button>
@@ -1022,6 +1040,38 @@ export default function AIChat() {
 
     {/* Publish dialog */}
 
+    {/* Diálogo exportar ZIP */}
+    <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Exportar proyecto</DialogTitle>
+          <DialogDescription>Elige un nombre para el archivo ZIP.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Nombre del proyecto</label>
+            <input
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              value={exportName}
+              onChange={(e) => setExportName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleExport()}
+              placeholder="mi-proyecto"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />
+              Descargar ZIP
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setExportDialogOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <Dialog open={publishOpen} onOpenChange={(v) => { if (!v) setPublishOpen(false); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
@@ -1051,8 +1101,11 @@ export default function AIChat() {
           <button
             disabled={publishing}
             onClick={() => handlePublish("community")}
-            className="flex flex-col items-center gap-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/60 hover:border-blue-500/50 transition-all p-5 disabled:opacity-50"
+            className="relative flex flex-col items-center gap-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/60 hover:border-blue-500/50 transition-all p-5 disabled:opacity-50"
           >
+            {!canPublish && (
+              <span className="absolute top-2 right-2 text-[10px] font-semibold bg-violet-600/80 text-white px-1.5 py-0.5 rounded-full">Pro</span>
+            )}
             <div className="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center">
               <Upload className="w-5 h-5 text-blue-400" />
             </div>

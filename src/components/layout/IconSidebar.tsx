@@ -34,7 +34,7 @@ const NAV_ITEMS = [
 export const IconSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const initials = (user?.username ?? user?.email ?? "?").slice(0, 2).toUpperCase();
 
@@ -103,6 +103,7 @@ export const IconSidebar = () => {
         )}
       </nav>
 
+      {/* Avatar → Settings */}
       <div className="relative group mb-1">
         <div
           className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/40 to-violet-500/40 border border-primary/30 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:opacity-80 transition-opacity"
@@ -123,7 +124,8 @@ export const IconSidebar = () => {
         </div>
       </div>
 
-      <div className="relative group">
+      {/* Publicar */}
+      <div className="relative group mb-1">
         <Button
           size="sm"
           onClick={() => navigate("/projects")}
@@ -136,6 +138,24 @@ export const IconSidebar = () => {
           bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
           border border-white/10">
           Publicar
+          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
+        </div>
+      </div>
+
+      {/* Cerrar sesión */}
+      <div className="relative group">
+        <button
+          onClick={() => { logout(); navigate("/login"); }}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          aria-label="Cerrar sesión"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+        <div className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 z-50
+          opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap
+          bg-zinc-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl
+          border border-white/10">
+          Cerrar sesión
           <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-800" />
         </div>
       </div>
