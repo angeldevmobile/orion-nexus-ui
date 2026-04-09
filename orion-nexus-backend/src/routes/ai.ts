@@ -38,7 +38,7 @@ const createChatValidation = [
 ];
 
 const sendMessageValidation = [
-  body('message').isString().isLength({ min: 1, max: 5000 }),
+  body('message').isString().isLength({ min: 1, max: 50000 }),
   body('chatHistory').optional().isArray(),
   body('context').optional().isObject(),
   body('context.projectId').optional().isString(),

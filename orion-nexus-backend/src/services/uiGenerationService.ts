@@ -1,12 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { ChatContext, GenerateResponseOptions, GeneratedComponentResult, ClaudeMessage } from '../types/ai';
 import { generateLovablePreviewHTML } from './previewService';
 import { promptCache } from './promptCache';
 import { aiQueue } from './aiQueue';
 
-const claude = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function buildSystemPrompt(context?: ChatContext): string {
   return `Eres Orion, el asistente de desarrollo de Orion Nexus Studio. Generas aplicaciones React+Vite+TypeScript completas y bien estructuradas, con la misma calidad y organización que Lovable o Bolt.
@@ -143,6 +143,27 @@ function parseXmlFiles(rawText: string): { files: { path: string; content: strin
   return { files, description };
 }
 
+function processStreamChunk(
+  fullContent: string,
+  announcedFiles: Set<string>,
+  descriptionSent: boolean,
+  onChunk: (chunk: string) => void
+): void {
+  if (!descriptionSent) {
+    const descMatch = fullContent.match(/<description>([\s\S]*?)<\/description>/);
+    if (descMatch) onChunk(`__DESC__:${descMatch[1].trim()}`);
+  }
+  const fileOpenRe = /<file\s+path="([^"]+)">/g;
+  let m: RegExpExecArray | null;
+  while ((m = fileOpenRe.exec(fullContent)) !== null) {
+    const filePath = m[1];
+    if (!announcedFiles.has(filePath) && fullContent.indexOf('</file>', m.index) !== -1) {
+      announcedFiles.add(filePath);
+      onChunk(`__FILE__:${filePath}`);
+    }
+  }
+}
+
 export async function generateResponse(
   message: string,
   options: GenerateResponseOptions = {}
@@ -167,14 +188,29 @@ export async function generateResponse(
     }));
     claudeMsgs.push({ role: 'user', content: message });
 
-    const completion = await claude.messages.create({
-      model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system: systemMessage,
-      messages: claudeMsgs,
-    });
+    let rawText = '';
 
-    const rawText = (completion.content[0] as { type: string; text: string })?.text || '';
+    try {
+      const completion = await claude.messages.create({
+        model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+        max_tokens: 16000,
+        system: systemMessage,
+        messages: claudeMsgs,
+      });
+      rawText = (completion.content[0] as { type: string; text: string })?.text || '';
+    } catch (claudeError) {
+      console.warn('[AI] Claude failed, falling back to OpenAI:', (claudeError as Error).message);
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL_MAIN || 'gpt-4o-mini',
+        max_tokens: 16000,
+        messages: [
+          { role: 'system', content: systemMessage },
+          ...claudeMsgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        ],
+      });
+      rawText = completion.choices[0]?.message?.content || '';
+    }
+
     if (!rawText) throw new Error('No content generated');
 
     const isXmlResponse = rawText.trimStart().startsWith('<project>') || /<file\s+path=/.test(rawText);
@@ -224,38 +260,41 @@ export async function streamResponse(
   const heartbeat = setInterval(() => onChunk('__BUILDING__'), 2000);
 
   await aiQueue.run(async () => {
-    const claudeStream = claude.messages.stream({
-      model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system: systemMessage,
-      messages: claudeMsgs,
-    });
+    try {
+      const claudeStream = claude.messages.stream({
+        model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+        max_tokens: 16000,
+        system: systemMessage,
+        messages: claudeMsgs,
+      });
 
-    for await (const event of claudeStream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        fullContent += event.delta.text;
-
-        // Stream description as soon as it's complete
-        if (!descriptionSent) {
-          const descMatch = fullContent.match(/<description>([\s\S]*?)<\/description>/);
-          if (descMatch) {
-            onChunk(`__DESC__:${descMatch[1].trim()}`);
-            descriptionSent = true;
-          }
+      for await (const event of claudeStream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          fullContent += event.delta.text;
+          processStreamChunk(fullContent, announcedFiles, descriptionSent, onChunk);
+          if (!descriptionSent && /<description>([\s\S]*?)<\/description>/.test(fullContent)) descriptionSent = true;
         }
+      }
+    } catch (claudeError) {
+      console.warn('[AI] Claude stream failed, falling back to OpenAI:', (claudeError as Error).message);
+      fullContent = '';
 
-        // Announce each file the moment its closing tag appears
-        const fileOpenRe = /<file\s+path="([^"]+)">/g;
-        let m: RegExpExecArray | null;
-        while ((m = fileOpenRe.exec(fullContent)) !== null) {
-          const filePath = m[1];
-          if (!announcedFiles.has(filePath)) {
-            const closeIdx = fullContent.indexOf('</file>', m.index);
-            if (closeIdx !== -1) {
-              announcedFiles.add(filePath);
-              onChunk(`__FILE__:${filePath}`);
-            }
-          }
+      const openaiStream = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL_MAIN || 'gpt-4o-mini',
+        max_tokens: 16000,
+        stream: true,
+        messages: [
+          { role: 'system', content: systemMessage },
+          ...claudeMsgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        ],
+      });
+
+      for await (const chunk of openaiStream) {
+        const text = chunk.choices[0]?.delta?.content || '';
+        if (text) {
+          fullContent += text;
+          processStreamChunk(fullContent, announcedFiles, descriptionSent, onChunk);
+          if (!descriptionSent && /<description>([\s\S]*?)<\/description>/.test(fullContent)) descriptionSent = true;
         }
       }
     }

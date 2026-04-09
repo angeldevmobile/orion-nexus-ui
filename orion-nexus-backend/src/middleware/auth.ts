@@ -41,12 +41,14 @@ export const authenticateToken = async (
     }
     const user = userResult.rows[0];
     const rawPlan = user.plan as string;
+    const isAdmin = user.role === 'admin';
 
     req.user = {
       id: user.id.toString(),
       email: user.email,
       role: user.role as 'user' | 'admin',
-      plan: (['pro', 'business', 'enterprise'].includes(rawPlan) ? rawPlan : 'free') as 'free' | 'pro' | 'business' | 'enterprise',
+      // Admin siempre tiene plan enterprise (acceso ilimitado a todo)
+      plan: isAdmin ? 'enterprise' : (['pro', 'business', 'enterprise'].includes(rawPlan) ? rawPlan : 'free') as 'free' | 'pro' | 'business' | 'enterprise',
     };
 
     next();

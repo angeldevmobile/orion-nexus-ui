@@ -13,7 +13,7 @@ import {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// ─── Code tools ──────────────────────────────────────────────────────────────
+//   Code tools  
 
 export async function generateCode(options: GenerateCodeOptions): Promise<string> {
   const { prompt, language = 'typescript', framework = 'react', context, returnJson = false } = options;
@@ -71,7 +71,7 @@ Responde en español.`;
 
   try {
     const response = await claude.messages.create({
-      model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+      model: process.env.CLAUDE_MODEL_FAST || 'claude-haiku-4-5-20251001',
       max_tokens: 2000,
       system: 'Eres un experto en explicación de código. Proporciona explicaciones claras y educativas en español.',
       messages: [{ role: 'user', content: prompt }],
@@ -85,7 +85,7 @@ Responde en español.`;
       { role: 'user', content: `Explica el siguiente código ${language}:\n\`\`\`${language}\n${code}\n\`\`\`` },
     ];
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: process.env.OPENAI_MODEL_MAIN || 'gpt-4o-mini',
       messages,
       max_completion_tokens: 1500,
     });
@@ -140,7 +140,7 @@ Proporciona sugerencias específicas para mejorar. Responde en español.`;
 
   const messages: ClaudeMessage[] = [{ role: 'user', content: prompt }];
   const response = await claude.messages.create({
-    model: process.env.CLAUDE_MODEL_MAIN || 'claude-sonnet-4-6',
+    model: process.env.CLAUDE_MODEL_FAST || 'claude-haiku-4-5-20251001',
     max_tokens: 2000,
     system: 'Eres un senior developer experto en revisión de código. Proporciona análisis detallados y constructivos en español.',
     messages,
@@ -180,7 +180,7 @@ Genera código de test completo y ejecutable.`;
   return completion.choices[0]?.message?.content || '// No pude generar los tests';
 }
 
-// ─── Project generation ───────────────────────────────────────────────────────
+//   Project generation                   ─
 
 function generateProjectName(prompt: string): string {
   return prompt
@@ -246,7 +246,7 @@ export async function generateProjectStructure(
   framework: string = 'react'
 ): Promise<ProjectStructure> {
   try {
-    const systemMessage = `You are an expert project architect. Generate a complete project structure with all necessary files, dependencies, and configurations.
+    const systemMessage = `You are an expert project architect. Generate a complete, modular project structure with all necessary files, dependencies, and configurations.
       Return ONLY a valid JSON object with this exact structure:
       {
         "name": "project-name",
@@ -255,12 +255,22 @@ export async function generateProjectStructure(
         "dependencies": ["dependency1"],
         "devDependencies": ["devDep1"],
         "scripts": { "dev": "command", "build": "command" }
-      }`;
+      }
+      MODULARITY RULES (REQUIRED):
+      - Each file must have ONE responsibility (max ~300 lines per file).
+      - Split UI into small components under src/components/.
+      - Pages go in src/pages/, one file per page.
+      - Custom hooks go in src/hooks/.
+      - Types/interfaces go in src/types/.
+      - API calls/services go in src/services/.
+      - App.tsx must only contain router and providers, no business logic.
+      - NEVER put all code in one large file.`;
 
     const enhancedPrompt = `
-      Crea una estructura completa de proyecto para: ${prompt}
+      Crea una estructura completa y MODULAR de proyecto para: ${prompt}
       Framework: ${framework}
-      Incluye: package.json, vite.config.ts, tsconfig.json, tailwind.config.js, README.md, .gitignore, index.html, archivos principales y 2-3 componentes de ejemplo.
+      Incluye: package.json, vite.config.ts, tsconfig.json, tailwind.config.js, README.md, .gitignore, index.html.
+      Estructura de src/ dividida en: pages/ (una por archivo), components/ (mínimo 4 componentes pequeños), hooks/, types/, services/.
       El nombre del proyecto debe ser descriptivo y relacionado con "${prompt}".`;
 
     const messages: OpenAIMessage[] = [
@@ -269,7 +279,7 @@ export async function generateProjectStructure(
     ];
 
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL_MAIN || 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL_MAIN || 'gpt-4o-mini',
       messages,
       max_completion_tokens: 6000,
     });
@@ -455,11 +465,28 @@ IMPORTANTE: Responde SOLO con JSON válido siguiendo esta estructura EXACTA:
   },
   "meta": { "name": "nombre", "description": "desc", "framework": "${framework}", "features": [] }
 }
-REGLAS: paths con "/", TypeScript + Tailwind CSS, SOLO JSON.`;
+REGLAS DE MODULARIDAD (OBLIGATORIAS):
+- Cada archivo debe tener UNA sola responsabilidad (máx ~300 líneas por archivo).
+- Divide la UI en componentes pequeños en /src/components/.
+- Las páginas van en /src/pages/, cada una en su propio archivo.
+- Los hooks personalizados van en /src/hooks/.
+- Los tipos/interfaces van en /src/types/.
+- Los servicios/llamadas API van en /src/services/.
+- App.tsx solo debe tener el router y providers, sin lógica de negocio.
+- NUNCA pongas todo el código en un solo archivo grande.
+- paths con "/", TypeScript + Tailwind CSS, SOLO JSON.`;
 
-    const enhancedPrompt = `Genera un proyecto ${framework} completo para: ${prompt}
+    const enhancedPrompt = `Genera un proyecto ${framework} completo y MODULAR para: ${prompt}
 
-Debe incluir package.json, archivos de configuración, /src/App.tsx funcional y moderno, /src/main.tsx, index.html, README.md, .gitignore, y al menos 2-3 componentes en /src/components/.
+Estructura requerida (archivos separados por responsabilidad):
+- package.json, vite.config.ts, tsconfig.json, tailwind.config.js, postcss.config.js, index.html, .gitignore, README.md
+- /src/main.tsx — solo entry point
+- /src/App.tsx — solo router + providers
+- /src/pages/ — una página por archivo
+- /src/components/ — mínimo 4-6 componentes pequeños y reutilizables
+- /src/hooks/ — hooks personalizados si aplica
+- /src/types/ — interfaces y tipos
+- /src/services/ — lógica de API si aplica
 El proyecto debe correr con "npm install && npm run dev".`;
 
     const messages: OpenAIMessage[] = [

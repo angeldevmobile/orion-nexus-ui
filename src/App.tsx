@@ -47,6 +47,7 @@ const AppContent = () => {
 				<Route path="/register" element={<Register />} />
 				<Route path="/auth/callback" element={<AuthCallback />} />
 				<Route path="/reset-password" element={<ResetPassword />} />
+				<Route path="/verify-email" element={<VerifyEmail />} />
 				{/* Rutas protegidas */}
 				<Route
 					path="/dashboard"

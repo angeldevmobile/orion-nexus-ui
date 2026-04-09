@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,8 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -59,8 +62,8 @@ export default function Register() {
     try {
       const response = await authService.register({ username, email, password });
       login(response.token, response.user);
-      toast({ title: "Cuenta creada!", description: "Tu cuenta ha sido creada exitosamente" });
-      navigate("/dashboard");
+      setRegisteredEmail(email);
+      setRegistered(true);
     } catch (error) {
       const err = error as BackendError;
       let description = "Error al crear la cuenta";
@@ -72,6 +75,41 @@ export default function Register() {
       setIsLoading(false);
     }
   };
+
+  // Pantalla post-registro: verificar email
+  if (registered) {
+    return (
+      <div className="min-h-screen bg-[#04060d] flex items-center justify-center p-6">
+        <div className="w-full max-w-[400px] text-center space-y-6">
+          <div className="relative flex justify-center">
+            <div className="w-20 h-20 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+              <MailCheck className="w-9 h-9 text-cyan-400" />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Revisa tu correo</h2>
+            <p className="text-zinc-400 text-sm mt-3 leading-relaxed">
+              Enviamos un enlace de verificacion a<br />
+              <span className="text-cyan-400 font-medium">{registeredEmail}</span>
+            </p>
+            <p className="text-zinc-600 text-xs mt-3">
+              Haz clic en el enlace para activar tu cuenta. El link expira en 24 horas.
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <Button
+              className="w-full h-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-medium"
+              onClick={() => navigate("/dashboard")}>
+              Ir al Dashboard de todas formas
+            </Button>
+            <Link to="/login" className="block text-sm text-zinc-600 hover:text-zinc-400 transition-colors">
+              Volver al login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#04060d] flex relative overflow-hidden">

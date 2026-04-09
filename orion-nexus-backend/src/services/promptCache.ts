@@ -5,7 +5,7 @@ const TTL_SECONDS = 60 * 60;       // 1 hour
 const MEM_TTL_MS  = TTL_SECONDS * 1000;
 const MEM_MAX     = 500;            // max entries in the memory fallback
 
-// ─── Memory fallback ──────────────────────────────────────────────────────────
+//   Memory fallback                    ─
 interface MemEntry { value: string; expiresAt: number }
 const memStore = new Map<string, MemEntry>();
 
@@ -24,7 +24,7 @@ function memSet(key: string, value: string): void {
   memStore.set(key, { value, expiresAt: Date.now() + MEM_TTL_MS });
 }
 
-// ─── Redis client ─────────────────────────────────────────────────────────────
+//   Redis client                     ─
 let redis: RedisClientType | null = null;
 let redisReady = false;
 
@@ -65,7 +65,7 @@ async function connectRedis(): Promise<void> {
 // Connect at startup; failures are silent — memory cache takes over
 connectRedis().catch(() => {});
 
-// ─── Public cache API ─────────────────────────────────────────────────────────
+//   Public cache API                    
 class PromptCache {
   /** SHA-256 key from prompt text + version tag. */
   key(prompt: string, version: string): string {
