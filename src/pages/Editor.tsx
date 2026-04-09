@@ -68,7 +68,7 @@ export default function Editor() {
 	const { toast } = useToast();
 	const navigate = useNavigate();
 	const { user, token } = useAuth();
-	const { autoFixError, uiData } = useChat();
+	const { autoFixError, uiData, previewUrl: storePreviewUrl } = useChat();
 	const prefs = user?.preferences as Record<string, unknown> | undefined;
 	const editorFontFamily = prefs?.editorFont
 		? String(prefs.editorFont)
@@ -330,6 +330,15 @@ export default function Editor() {
 		return () => window.removeEventListener('keydown', onKeyDown);
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [localActiveFile, editedContent, serverUrl]);
+
+	// Sync iframe when Vite restarts on a new port
+	useEffect(() => {
+		if (storePreviewUrl && iframeRef.current && storePreviewUrl !== serverUrl) {
+			setServerUrl(storePreviewUrl);
+			iframeRef.current.src = storePreviewUrl;
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [storePreviewUrl]);
 
 	// Auto-run when an existing project is loaded
 	useEffect(() => {

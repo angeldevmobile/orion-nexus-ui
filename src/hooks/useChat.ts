@@ -221,13 +221,38 @@ function augmentFilesForWC(files: { path: string; content: string }[]): { path: 
 async function bootWebContainer(files: { path: string; content: string }[]) {
   const currentStatus = useChatStore.getState().wcStatus;
 
-  // If Vite is already running → hot-update files only, no restart 
+  // If Vite is already running → hot-update files + install new deps if needed
   if (currentStatus === 'ready') {
     try {
+      // 1. Detect new dependencies from package.json
+      const pkgFile = files.find(f => f.path.replace(/^\//, '') === 'package.json');
+      if (pkgFile) {
+        try {
+          const newPkg = JSON.parse(pkgFile.content);
+          const currentPkgRaw = await fileManager.readFile('/package.json').catch(() => '{}');
+          const currentPkg = JSON.parse(currentPkgRaw);
+          const currentDeps = { ...currentPkg.dependencies, ...currentPkg.devDependencies };
+          const newDeps = { ...newPkg.dependencies, ...newPkg.devDependencies };
+          const toInstall = Object.keys(newDeps).filter(dep => !currentDeps[dep]);
+          if (toInstall.length > 0) {
+            addWcLog(`Instalando nuevas dependencias: ${toInstall.join(', ')}...`);
+            for (const dep of toInstall) {
+              await installPackage(dep, addWcLog).catch(err =>
+                addWcLog(`No se pudo instalar ${dep}: ${err instanceof Error ? err.message : String(err)}`)
+              );
+            }
+          }
+          // Update package.json in container
+          await updateFilesInContainer({ '/package.json': pkgFile.content });
+        } catch {
+          addWcLog('No se pudo comparar package.json — omitiendo instalación');
+        }
+      }
+
+      // 2. Update source files via HMR
       addWcLog('Actualizando archivos en WebContainer...');
       const snapshot: Record<string, string> = {};
       for (const f of files) {
-        // Only update source files — skip package.json, vite.config, tsconfig
         const p = f.path.startsWith('/') ? f.path : `/${f.path}`;
         if (
           p.includes('/src/') ||
@@ -237,8 +262,10 @@ async function bootWebContainer(files: { path: string; content: string }[]) {
           snapshot[p] = f.content;
         }
       }
-      await updateFilesInContainer(snapshot);
-      addWcLog(`${Object.keys(snapshot).length} archivos actualizados — Vite HMR activo`);
+      if (Object.keys(snapshot).length > 0) {
+        await updateFilesInContainer(snapshot);
+        addWcLog(`${Object.keys(snapshot).length} archivos actualizados — Vite HMR activo`);
+      }
     } catch (err) {
       addWcLog(`Error actualizando archivos: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -276,7 +303,16 @@ async function bootWebContainer(files: { path: string; content: string }[]) {
     useChatStore.setState({ wcStatus: 'starting' });
     addWcLog('Iniciando servidor Vite...');
 
-    const url = await Promise.race([runDevServer(addWcLog, handleViteError), timeoutPromise]);
+    const url = await Promise.race([
+      runDevServer(addWcLog, handleViteError, (newUrl) => {
+        useChatStore.setState({ previewUrl: newUrl });
+        addWcLog(`Preview actualizado: ${newUrl}`);
+        // Actualizar iframe si existe
+        const iframe = document.getElementById('preview-iframe') as HTMLIFrameElement | null;
+        if (iframe) iframe.src = newUrl;
+      }),
+      timeoutPromise,
+    ]);
 
     if (timeoutId) clearTimeout(timeoutId);
     useChatStore.setState({ wcStatus: 'ready', previewUrl: url as string, wcError: '' });
@@ -395,8 +431,15 @@ export const useChat = create<ChatStore>((set, get) => ({
         async (enriched) => {
           enrichedData = enriched;
           set({ generatedCode: enriched.reactCode, generatingFiles: [] });
-          await writeFilesToVirtualFS(enriched.files);
-          if (enriched.files.length > 0) bootWebContainer(enriched.files);
+          if (enriched.files.length > 0) {
+            const isRunning = useChatStore.getState().wcStatus === 'ready';
+            if (isRunning) {
+              await bootWebContainer(enriched.files);
+            } else {
+              await writeFilesToVirtualFS(enriched.files);
+              bootWebContainer(enriched.files);
+            }
+          }
         },
         () => { /* static preview disabled */ },
         (filePath) => {
@@ -535,8 +578,14 @@ export const useChat = create<ChatStore>((set, get) => ({
         async (enriched) => {
           enrichedData = enriched;
           set({ generatedCode: enriched.reactCode, wcError: '' });
-          await writeFilesToVirtualFS(enriched.files);
-          bootWebContainer(enriched.files);
+          const isRunning = useChatStore.getState().wcStatus === 'ready';
+          if (isRunning) {
+            // WC already running — only patch src files, don't touch node_modules
+            await bootWebContainer(enriched.files);
+          } else {
+            await writeFilesToVirtualFS(enriched.files);
+            bootWebContainer(enriched.files);
+          }
         }
       );
     } catch {

@@ -138,7 +138,8 @@ export async function installPackage(
 
 export async function runDevServer(
   onLog: (msg: string) => void,
-  onError?: (error: string) => void
+  onError?: (error: string) => void,
+  onServerRestart?: (url: string) => void
 ): Promise<string> {
   if (!webcontainer) {
     throw new Error("WebContainer no inicializado");
@@ -201,10 +202,18 @@ export async function runDevServer(
         reject(new Error("Timeout esperando servidor"));
       }, 60000);
 
+      let resolved = false;
       webcontainer!.on("server-ready", (port, url) => {
         clearTimeout(timeout);
         onLog(`Servidor listo en: ${url}`);
-        resolve(url);
+        if (!resolved) {
+          resolved = true;
+          resolve(url);
+        } else {
+          // Vite reinició en nuevo puerto — actualizar iframe
+          onLog(`Vite reiniciado en: ${url}`);
+          if (onServerRestart) onServerRestart(url);
+        }
       });
 
       serverProcess.exit.then((exitCode) => {
