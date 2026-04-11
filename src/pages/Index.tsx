@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Zap, Code2, Sparkles, Shield, Users, ArrowRight,
   Upload, Heart, Eye, Bookmark, Globe, CheckCircle2, Trash2,
 } from "lucide-react";
@@ -59,6 +62,7 @@ function CommunityShowcase() {
   const [templates, setTemplates] = useState<PublicTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; name: string } | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.role === "admin";
@@ -71,7 +75,6 @@ function CommunityShowcase() {
   }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`¿Eliminar la plantilla "${name}"?`)) return;
     setDeletingId(id);
     try {
       await apiService.delete(`/admin/templates/${id}`);
@@ -81,6 +84,7 @@ function CommunityShowcase() {
       toast({ title: "Error", description: err instanceof Error ? err.message : "No se pudo eliminar.", variant: "destructive" });
     } finally {
       setDeletingId(null);
+      setConfirmTarget(null);
     }
   };
 
@@ -139,7 +143,7 @@ function CommunityShowcase() {
                     )}
                     {isAdmin && (
                       <button
-                        onClick={() => handleDelete(tpl.id, tpl.name)}
+                        onClick={() => setConfirmTarget({ id: tpl.id, name: tpl.name })}
                         disabled={deletingId === tpl.id}
                         className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 disabled:opacity-50"
                         title="Eliminar plantilla"
@@ -178,6 +182,40 @@ function CommunityShowcase() {
           </Button>
         </div>
       </div>
+
+      <Dialog open={!!confirmTarget} onOpenChange={(open) => { if (!open) setConfirmTarget(null); }}>
+        <DialogContent className="max-w-sm bg-[#1a1a1f] border border-white/10 text-white">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <DialogTitle className="text-white text-base">Eliminar plantilla</DialogTitle>
+            </div>
+            <DialogDescription className="text-white/50 text-sm leading-relaxed">
+              ¿Estás seguro de que quieres eliminar{" "}
+              <span className="text-white/80 font-medium">"{confirmTarget?.name}"</span>?
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              variant="ghost"
+              className="text-white/60 hover:text-white hover:bg-white/5"
+              onClick={() => setConfirmTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={!!deletingId}
+              onClick={() => confirmTarget && handleDelete(confirmTarget.id, confirmTarget.name)}
+            >
+              {deletingId ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

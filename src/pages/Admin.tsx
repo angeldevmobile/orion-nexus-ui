@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { IconSidebar } from "@/components/layout/IconSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiService } from "@/service/ApiService";
 import {
   Users,
@@ -85,6 +86,7 @@ export default function Admin() {
   const [templates, setTemplates] = useState<AdminTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   const fetchTemplates = async () => {
@@ -100,7 +102,6 @@ export default function Admin() {
   };
 
   const handleDeleteTemplate = async (id: string, name: string) => {
-    if (!confirm(`¿Eliminar la plantilla "${name}"? Esta acción no se puede deshacer.`)) return;
     setDeletingId(id);
     try {
       await apiService.delete(`/admin/templates/${id}`);
@@ -110,6 +111,7 @@ export default function Admin() {
       toast({ title: "Error", description: err instanceof Error ? err.message : "No se pudo eliminar.", variant: "destructive" });
     } finally {
       setDeletingId(null);
+      setConfirmTarget(null);
     }
   };
 
@@ -356,7 +358,7 @@ export default function Admin() {
                               size="sm"
                               className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
                               disabled={deletingId === t.id}
-                              onClick={() => handleDeleteTemplate(t.id, t.name)}
+                              onClick={() => setConfirmTarget({ id: t.id, name: t.name })}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -419,6 +421,40 @@ export default function Admin() {
           </div>
         </main>
       </div>
+
+      <Dialog open={!!confirmTarget} onOpenChange={(open) => { if (!open) setConfirmTarget(null); }}>
+        <DialogContent className="max-w-sm bg-[#1a1a1f] border border-white/10 text-white">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <DialogTitle className="text-white text-base">Eliminar plantilla</DialogTitle>
+            </div>
+            <DialogDescription className="text-white/50 text-sm leading-relaxed">
+              ¿Estás seguro de que quieres eliminar{" "}
+              <span className="text-white/80 font-medium">"{confirmTarget?.name}"</span>?
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              variant="ghost"
+              className="text-white/60 hover:text-white hover:bg-white/5"
+              onClick={() => setConfirmTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={!!deletingId}
+              onClick={() => confirmTarget && handleDeleteTemplate(confirmTarget.id, confirmTarget.name)}
+            >
+              {deletingId ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
