@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../utils/logger';
 import { pool } from '../config/database';
 import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse } from '../types/api';
@@ -185,7 +186,7 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error generating AI response:', error);
+    logger.error('Error generating AI response', { error });
     throw createError('Failed to generate AI response', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
@@ -222,7 +223,7 @@ export const generateCode = asyncHandler(async (req: Request, res: Response) => 
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error generating code:', error);
+    logger.error('Error generating code', { error });
     throw createError('Failed to generate code', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
@@ -264,7 +265,7 @@ export const generateProject = asyncHandler(async (req: Request, res: Response) 
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error generating project:', error);
+    logger.error('Error generating project', { error });
     throw createError('Failed to generate project', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
@@ -292,7 +293,7 @@ export const generateReactComponent = asyncHandler(async (req: Request, res: Res
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error generating React component:', error);
+    logger.error('Error generating React component', { error });
     throw createError('Failed to generate React component', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
@@ -320,7 +321,7 @@ export const explainCode = asyncHandler(async (req: Request, res: Response) => {
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error explaining code:', error);
+    logger.error('Error explaining code', { error });
     throw createError('Failed to explain code', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
@@ -348,7 +349,7 @@ export const optimizeCode = asyncHandler(async (req: Request, res: Response) => 
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error optimizing code:', error);
+    logger.error('Error optimizing code', { error });
     throw createError('Failed to optimize code', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
@@ -376,7 +377,7 @@ export const reviewCode = asyncHandler(async (req: Request, res: Response) => {
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error('Error reviewing code:', error);
+    logger.error('Error reviewing code', { error });
     throw createError('Failed to review code', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });

@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
+import logger from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { FileUpload } from '../types/api';
 
@@ -76,7 +77,7 @@ class FileService {
       // Return relative path
       return subDir ? `${subDir}/${filename}` : filename;
     } catch (error) {
-      console.error('File save error:', error);
+      logger.error('File save error', { error });
       throw new Error('Failed to save file');
     }
   }
@@ -86,7 +87,7 @@ class FileService {
       const fullPath = path.join(this.uploadsDir, filePath);
       await fs.unlink(fullPath);
     } catch (error) {
-      console.error('File delete error:', error);
+      logger.error('File delete error', { error });
       // Don't throw error if file doesn't exist
     }
   }
@@ -96,7 +97,7 @@ class FileService {
       const fullPath = path.join(this.uploadsDir, filePath);
       return await fs.readFile(fullPath);
     } catch (error) {
-      console.error('File read error:', error);
+      logger.error('File read error', { error });
       throw new Error('File not found');
     }
   }

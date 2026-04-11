@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger';
 import {
   createChatSession,
   getChatSessions,
@@ -116,7 +117,7 @@ router.post('/chat/stream', optionalAuth, checkCredits('chat'), sendMessageValid
       res.write('data: [DONE]\n\n');
     }
   } catch (error) {
-    console.error('Stream Error:', error);
+    logger.error('Stream Error', { error });
     if (!closed && !res.writableEnded) {
       res.write(`data: ${JSON.stringify({ error: 'Stream failed' })}\n\n`);
       res.write('data: [DONE]\n\n');
@@ -142,7 +143,7 @@ router.post('/chat', optionalAuth, checkCredits('chat'), sendMessageValidation, 
 
     res.json({ response });
   } catch (error) {
-    console.error('Chat Error:', error);
+    logger.error('Chat Error', { error });
     res.status(500).json({
       error: 'Failed to process chat message',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -193,7 +194,7 @@ router.post('/generate-code', optionalAuth, checkCredits('generateCode'), genera
     const code = await aiService.generateCode(req.body);
     res.json({ code });
   } catch (error) {
-    console.error('Generate Code Error:', error);
+    logger.error('Generate Code Error', { error });
     res.status(500).json({
       error: 'Failed to generate code',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -211,7 +212,7 @@ router.post('/generate-project', optionalAuth, checkCredits('generateProject'), 
     const projectStructure = await aiService.generateProjectStructure(prompt, framework);
     res.json({ projectStructure });
   } catch (error) {
-    console.error('Generate Project Error:', error);
+    logger.error('Generate Project Error', { error });
     res.status(500).json({
       error: 'Failed to generate project',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -242,7 +243,7 @@ router.post('/generate-full-project', optionalAuth, checkCredits('generateProjec
       meta: result.meta
     });
   } catch (error) {
-    console.error('Generate Full Project Error:', error);
+    logger.error('Generate Full Project Error', { error });
     res.status(500).json({
       error: 'Failed to generate full project',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -260,7 +261,7 @@ router.post('/generate-component', optionalAuth, checkCredits('generateComponent
     const result = await aiService.generateReactComponent(prompt, context);
     res.json(result);
   } catch (error) {
-    console.error('Generate Component Error:', error);
+    logger.error('Generate Component Error', { error });
     res.status(500).json({
       error: 'Failed to generate component',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -280,7 +281,7 @@ router.post('/explain', optionalAuth, checkCredits('analyzeCode'), codeAnalysisV
     const explanation = await aiService.explainCode(code, language);
     res.json({ explanation });
   } catch (error) {
-    console.error('Explain Error:', error);
+    logger.error('Explain Error', { error });
     res.status(500).json({
       error: 'Failed to explain code',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -298,7 +299,7 @@ router.post('/optimize', optionalAuth, checkCredits('analyzeCode'), codeAnalysis
     const optimized = await aiService.optimizeCode(code, language);
     res.json({ optimized });
   } catch (error) {
-    console.error('Optimize Error:', error);
+    logger.error('Optimize Error', { error });
     res.status(500).json({
       error: 'Failed to optimize code',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -333,21 +334,21 @@ router.post('/create-files', async (req: Request, res: Response): Promise<void> 
         await fs.writeFile(fullPath, file.content, 'utf-8');
 
         result.created.push(file.path);
-        console.log(`Created: ${file.path}`);
+        logger.debug('File created', { path: file.path });
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         result.errors.push({
           path: file.path,
           error: errorMessage
         });
-        console.error(`Failed to create ${file.path}:`, errorMessage);
+        logger.error('Failed to create file', { path: file.path, error: errorMessage });
       }
     }
 
     res.json(result);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('File Creation Error:', errorMessage);
+    logger.error('File Creation Error', { error: errorMessage });
     res.status(500).json({ error: 'Failed to create files' });
   }
 });
@@ -362,7 +363,7 @@ router.post('/review', optionalAuth, codeAnalysisValidation, async (req: Request
     const review = await aiService.reviewCode(code, language);
     res.json({ review });
   } catch (error) {
-    console.error('Review Error:', error);
+    logger.error('Review Error', { error });
     res.status(500).json({
       error: 'Failed to review code',
       message: error instanceof Error ? error.message : 'Unknown error'
@@ -385,7 +386,7 @@ router.post('/generate-tests', optionalAuth, [
     const tests = await aiService.generateTests(code, language, framework);
     res.json({ tests });
   } catch (error) {
-    console.error('Generate Tests Error:', error);
+    logger.error('Generate Tests Error', { error });
     res.status(500).json({
       error: 'Failed to generate tests',
       message: error instanceof Error ? error.message : 'Unknown error'

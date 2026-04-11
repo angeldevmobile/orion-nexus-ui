@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse } from '../types/api';
+import logger from '../utils/logger';
 
 export interface CustomError extends Error {
   statusCode?: number;
@@ -9,11 +10,11 @@ export interface CustomError extends Error {
 
 export const errorHandler = (
   err: CustomError,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
-  console.error('Error:', err);
+  logger.error('Unhandled error', { message: err.message, stack: err.stack, statusCode: err.statusCode });
 
   let statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
   let message = err.message || 'Internal server error';

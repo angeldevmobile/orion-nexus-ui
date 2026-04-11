@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { consumeCredits } from '../services/creditService';
+import logger from '../utils/logger';
 import { CreditOperation, HTTP_STATUS } from '../utils/constants';
 
 /**
@@ -28,7 +29,7 @@ export const checkCredits = (operation: CreditOperation) => {
 
       next();
     } catch (error) {
-      console.error('[checkCredits] Error:', error);
+      logger.error('[checkCredits] Error', { error });
       // Si falla el sistema de créditos, no bloqueamos al usuario (fail-open)
       next();
     }

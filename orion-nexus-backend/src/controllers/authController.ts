@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../utils/logger';
 import { pool } from '../config/database';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
@@ -20,14 +21,14 @@ interface ProfileUpdates {
 // Registro de usuario
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { username, email, password }: RegisterRequest = req.body;
-  console.log('Email recibido en backend:', email);
+  logger.debug('Register attempt', { email });
 
   // Verificar si el usuario ya existe
   const existingUser = await pool.query(
     'SELECT id FROM users WHERE email = $1',
     [email]
   );
-  console.log('Resultado de búsqueda:', existingUser.rows);
+  logger.debug('Existing user lookup', { found: existingUser.rows.length > 0 });
 
   if (existingUser.rows.length > 0) {
     throw createError('User already exists with this email', HTTP_STATUS.CONFLICT);
@@ -59,7 +60,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   try {
     await initializeCredits(String(user.id), 'free');
   } catch (err) {
-    console.error('Failed to initialize credits on register:', err);
+    logger.error('Failed to initialize credits on register', { error: err });
   }
 
   // Generar token

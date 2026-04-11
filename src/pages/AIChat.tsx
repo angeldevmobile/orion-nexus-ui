@@ -442,6 +442,8 @@ export default function AIChat() {
   const [publishDescription, setPublishDescription] = useState("");
   const [pushingGitHub, setPushingGitHub] = useState(false);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [builtPreviewUrl, setBuiltPreviewUrl] = useState<string | null>(null);
 
   const handlePushGitHub = async () => {
     setPushingGitHub(true);
@@ -534,7 +536,7 @@ export default function AIChat() {
         name,
         description,
         isPublic: type === "community",
-        settings: { framework: "react", language: "typescript", thumbnail },
+        settings: { framework: "react", language: "typescript", thumbnail, ...(builtPreviewUrl ? { previewUrl: builtPreviewUrl } : {}) },
         files: snapshot,
       });
       await apiService.post(`/projects/${res.data.id}/publish`, { type });
@@ -708,6 +710,28 @@ export default function AIChat() {
       });
       if (!res.ok) throw new Error('Upload falló');
       const { url } = await res.json() as { url: string };
+
+      // Save or update the project with the permanent previewUrl
+      try {
+        const snapshot = await import("@/editor/fileSystem/lightningFsAdapter")
+          .then(m => m.dumpFsToJson()).catch(() => ({}));
+        if (currentProjectId) {
+          await apiService.put(`/projects/${currentProjectId}`, {
+            settings: { framework: "react", language: "typescript", previewUrl: url },
+          });
+        } else {
+          const saveRes = await apiService.post<{ data: { id: string } }>("/projects", {
+            name: `Proyecto ${new Date().toLocaleDateString("es")}`,
+            description: "",
+            isPublic: false,
+            settings: { framework: "react", language: "typescript", previewUrl: url },
+            files: snapshot,
+          });
+          setCurrentProjectId(saveRes.data.id);
+        }
+        setBuiltPreviewUrl(url);
+      } catch { /* ignore — preview still opens */ }
+
       window.open(url, '_blank');
     } catch (err) {
       toast({ title: 'Error', description: err instanceof Error ? err.message : 'No se pudo publicar', variant: 'destructive' });

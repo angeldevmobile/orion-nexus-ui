@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { createClient, RedisClientType } from 'redis';
+import logger from '../utils/logger';
 
 const TTL_SECONDS = 60 * 60;       // 1 hour
 const MEM_TTL_MS  = TTL_SECONDS * 1000;
@@ -31,7 +32,7 @@ let redisReady = false;
 async function connectRedis(): Promise<void> {
   const url = process.env.REDIS_URL;
   if (!url) {
-    console.log('[Cache] REDIS_URL not set — using in-memory cache');
+    logger.info('[Cache] REDIS_URL not set — using in-memory cache');
     return;
   }
 
@@ -40,13 +41,13 @@ async function connectRedis(): Promise<void> {
 
     redis.on('error', (err) => {
       if (redisReady) {
-        console.error('[Cache] Redis error — falling back to memory:', err.message);
+        logger.error('[Cache] Redis error — falling back to memory', { error: err.message });
         redisReady = false;
       }
     });
 
     redis.on('ready', () => {
-      console.log('[Cache] Redis connected');
+      logger.info('[Cache] Redis connected');
       redisReady = true;
     });
 
@@ -56,7 +57,7 @@ async function connectRedis(): Promise<void> {
 
     await redis.connect();
   } catch (err) {
-    console.error('[Cache] Redis connection failed — using in-memory cache:', (err as Error).message);
+    logger.error('[Cache] Redis connection failed — using in-memory cache', { error: (err as Error).message });
     redis = null;
     redisReady = false;
   }

@@ -88,7 +88,7 @@ interface PublicTemplate {
   name: string;
   description?: string;
   created_at: string;
-  settings?: { framework?: string; language?: string; thumbnail?: string };
+  settings?: { framework?: string; language?: string; thumbnail?: string; previewUrl?: string };
   owner_username?: string;
   owner_avatar?: string;
   likes_count?: number;
@@ -689,14 +689,23 @@ export default function Community() {
                       const gradient = fwColors[fw] ?? fwColors.vanilla;
                       return (
                         <Card key={tpl.id} className="bg-card border-border hover:border-violet-500/50 transition-all group overflow-hidden">
-                          <div className={`h-36 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center gap-2`}>
-                            {tpl.settings?.thumbnail ? (
+                          <div className={`h-36 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
+                            {tpl.settings?.previewUrl ? (
+                              <iframe
+                                src={tpl.settings.previewUrl}
+                                title={tpl.name}
+                                className="w-full h-full border-0 pointer-events-none"
+                                style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%', height: '200%' }}
+                                sandbox="allow-scripts allow-same-origin"
+                                loading="lazy"
+                              />
+                            ) : tpl.settings?.thumbnail ? (
                               <img src={tpl.settings.thumbnail} alt={tpl.name} className="w-full h-full object-cover" />
                             ) : (
-                              <>
+                              <div className="flex flex-col items-center justify-center gap-2 w-full h-full">
                                 <Bookmark className="w-10 h-10 opacity-30 text-violet-400" />
                                 <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">{fw}</span>
-                              </>
+                              </div>
                             )}
                           </div>
 

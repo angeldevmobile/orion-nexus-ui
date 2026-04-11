@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
+import logger from '../utils/logger';
 import crypto from 'crypto';
 
 const router = Router();
@@ -39,7 +40,7 @@ router.post('/upload', async (req: Request, res: Response) => {
     const backendUrl = (process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/$/, '');
     res.json({ url: `${backendUrl}/preview/${id}/` });
   } catch (err) {
-    console.error('[preview] upload error:', err);
+    logger.error('[preview] upload error', { error: err });
     res.status(500).json({ error: 'Upload failed' });
   }
 });

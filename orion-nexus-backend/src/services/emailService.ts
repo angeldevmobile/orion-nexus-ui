@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import logger from '../utils/logger';
 
 interface EmailOptions {
   to: string;
@@ -25,7 +26,7 @@ class EmailService {
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
       if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.warn('Email service not configured');
+        logger.warn('Email service not configured');
         return;
       }
 
@@ -38,9 +39,9 @@ class EmailService {
         html: options.html,
       });
 
-      console.log(`Email sent successfully to: ${options.to}`);
+      logger.info('Email sent', { to: options.to });
     } catch (error) {
-      console.error('Email sending failed:', error);
+      logger.error('Email sending failed', { error });
       throw new Error('Failed to send email');
     }
   }

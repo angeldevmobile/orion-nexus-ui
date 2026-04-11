@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../utils/logger';
 import { pool } from '../config/database';
 import { HTTP_STATUS, PLAN_FEATURES } from '../utils/constants';
 import { ApiResponse, PaginationQuery } from '../types/api';
@@ -95,7 +96,7 @@ export const createProject = asyncHandler(async (req: Request, res: Response) =>
       project.name,
       'creado exitosamente'
     ).catch((err: Error) => {
-      console.error('Error enviando notificación de proyecto:', err.message);
+      logger.error('Error enviando notificación de proyecto', { error: err.message });
     });
   }
 
@@ -543,7 +544,7 @@ export const pushToGitHub = asyncHandler(async (req: Request, res: Response) => 
     );
     if (!r.ok) {
       const e = await r.json() as { message?: string };
-      console.error(`Failed to upload ${filePath}: ${e.message}`);
+      logger.error('Failed to upload file', { path: filePath, error: e.message });
     }
   };
 
@@ -574,7 +575,7 @@ export const pushToGitHub = asyncHandler(async (req: Request, res: Response) => 
 // @access  Private
 export const publishProject = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { type } = req.body as { type: 'template' | 'community' };
+  const { type, previewUrl } = req.body as { type: 'template' | 'community'; previewUrl?: string };
   const userId = parseInt(req.user?.id || '0');
 
   const checkResult = await pool.query(
@@ -592,7 +593,11 @@ export const publishProject = asyncHandler(async (req: Request, res: Response) =
 
   const currentSettings = parseJson(checkResult.rows[0].settings, {}) as Record<string, unknown>;
 
-  const updatedSettings = { ...currentSettings, publishType: type };
+  const updatedSettings: Record<string, unknown> = {
+    ...currentSettings,
+    publishType: type,
+    ...(previewUrl ? { previewUrl, thumbnail: previewUrl } : {}),
+  };
 
   const result = await pool.query(
     `UPDATE projects

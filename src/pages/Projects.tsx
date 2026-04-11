@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +22,7 @@ interface Project {
   description?: string;
   created_at: string;
   updated_at: string;
-  settings?: { framework?: string; language?: string; thumbnail?: string };
+  settings?: { framework?: string; language?: string; thumbnail?: string; previewUrl?: string };
   owner_username?: string;
   owner_avatar?: string;
 }
@@ -46,6 +48,21 @@ function ProjectMockup({ project }: { project: Project }) {
   const fw = project.settings?.framework ?? "vanilla";
   const theme = FRAMEWORK_THEME[fw] ?? FRAMEWORK_THEME.vanilla;
   const initials = project.name.slice(0, 2).toUpperCase();
+
+  if (project.settings?.previewUrl) {
+    return (
+      <div className="w-full h-full overflow-hidden relative">
+        <iframe
+          src={project.settings.previewUrl}
+          title={project.name}
+          className="border-0 pointer-events-none absolute top-0 left-0"
+          style={{ width: "200%", height: "200%", transform: "scale(0.5)", transformOrigin: "top left" }}
+          sandbox="allow-scripts allow-same-origin"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
 
   if (project.settings?.thumbnail) {
     return <img src={project.settings.thumbnail} alt={project.name} className="w-full h-full object-cover" />;
@@ -189,6 +206,7 @@ export default function Projects() {
   const [loading, setLoading] = useState(true);
   const [publishProject, setPublishProject] = useState<Project | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [pushingGitHub, setPushingGitHub] = useState<string | null>(null);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const navigate = useNavigate();
@@ -259,7 +277,10 @@ export default function Projects() {
     if (!publishProject) return;
     setPublishing(true);
     try {
-      await apiService.post(`/projects/${publishProject.id}/publish`, { type });
+      await apiService.post(`/projects/${publishProject.id}/publish`, {
+        type,
+        previewUrl: previewUrl.trim() || undefined,
+      });
       toast({
         title: type === "template" ? "Publicado como plantilla" : "Publicado en comunidad",
         description: `"${publishProject.name}" ya está disponible ${type === "template" ? "como plantilla" : "en la comunidad"}.`,
@@ -339,7 +360,7 @@ export default function Projects() {
       </main>
 
       {/* Publish dialog */}
-      <Dialog open={!!publishProject} onOpenChange={(open) => { if (!open) setPublishProject(null); }}>
+      <Dialog open={!!publishProject} onOpenChange={(open) => { if (!open) { setPublishProject(null); setPreviewUrl(""); } }}>
         <DialogContent className="max-w-sm bg-[#1a1a1f] border border-white/10 text-white">
           <DialogHeader>
             <DialogTitle className="text-white">Publicar proyecto</DialogTitle>
@@ -347,6 +368,17 @@ export default function Projects() {
               Elige cómo quieres compartir <span className="text-white/80 font-medium">"{publishProject?.name}"</span>
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs text-white/50">URL de preview (opcional)</Label>
+            <Input
+              placeholder="https://mi-app.vercel.app"
+              value={previewUrl}
+              onChange={(e) => setPreviewUrl(e.target.value)}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/25 h-9 text-sm"
+            />
+            <p className="text-[11px] text-white/30">Se mostrará como vista previa en la comunidad</p>
+          </div>
 
           <div className={`grid gap-3 pt-2 ${isAdmin ? "grid-cols-2" : "grid-cols-1"}`}>
             {isAdmin && (

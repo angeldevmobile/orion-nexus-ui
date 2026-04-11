@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
+import logger from '../utils/logger';
 import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse } from '../types/api';
 
@@ -11,7 +12,7 @@ export const validateRequest = (
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     // Log de errores para depuración
-    console.log('Validation errors:', errors.array());
+    logger.debug('Validation errors', { errors: errors.array() });
     const response: ApiResponse = {
       success: false,
       message: 'Validation errors',
@@ -31,7 +32,7 @@ export const handleValidationErrors = (
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     // Log de errores para depuración
-    console.log('Validation errors:', errors.array());
+    logger.debug('Validation errors', { errors: errors.array() });
     const response: ApiResponse = {
       success: false,
       message: 'Validation errors',

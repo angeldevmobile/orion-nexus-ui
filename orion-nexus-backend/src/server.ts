@@ -22,6 +22,7 @@ interface RequestWithRawBody extends Request {
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import logger from './utils/logger';
+import { setupSwagger } from './config/swagger';
 import { aiQueue } from './services/aiQueue';
 import { promptCache } from './services/promptCache';
 
@@ -106,6 +107,19 @@ app.use(express.urlencoded({ extended: true, limit: maxFileSize }));
 // IMPORTANTE: Inicializar Passport
 app.use(passport.initialize());
 
+// Force HTTPS in production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
+// API documentation
+setupSwagger(app);
+
 // Request logging middleware (development only)
 if (process.env.NODE_ENV === 'development') {
   app.use((req, _res, next) => {
@@ -160,7 +174,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     message: 'Welcome to Orion Nexus API',
     version: '1.0.0',
@@ -289,7 +303,7 @@ io.on('connection', (socket: Socket) => {
       socketPresence.delete(socket.id);
       io.to(projectId).emit('presence-update', getPresenceForRoom(projectId));
     }
-    console.log(` User disconnected: ${socket.id}`);
+    logger.info('User disconnected', { socketId: socket.id });
   });
 });
 
@@ -313,31 +327,28 @@ const startServer = async () => {
     
     // Start server
     server.listen(PORT, () => {
-      console.log(` Server running on port ${PORT}`);
-      console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(` Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8080'}`);
-      console.log(` Database: PostgreSQL`);
-      console.log(` WebSocket: Enabled`);
+      logger.info(`Server running on port ${PORT}`, {
+        environment: process.env.NODE_ENV || 'development',
+        frontendUrl: process.env.FRONTEND_URL || 'http://localhost:8080',
+        database: 'PostgreSQL',
+        websocket: true,
+      });
     });
   } catch (error) {
-    console.error(' Failed to start server:', error);
+    logger.error('Failed to start server', { error });
     process.exit(1);
   }
 };
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log(' SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log(' Process terminated');
-  });
+  logger.info('SIGTERM received, shutting down gracefully...');
+  server.close(() => logger.info('Process terminated'));
 });
 
 process.on('SIGINT', () => {
-  console.log(' SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    console.log(' Process terminated');
-  });
+  logger.info('SIGINT received, shutting down gracefully...');
+  server.close(() => logger.info('Process terminated'));
 });
 
 startServer();

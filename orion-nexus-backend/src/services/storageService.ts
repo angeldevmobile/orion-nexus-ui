@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { FileUpload } from '../types/api';
+import logger from '../utils/logger';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -75,7 +76,7 @@ class StorageService {
         bytes: result.bytes,
       };
     } catch (error) {
-      console.error('Image upload error:', error);
+      logger.error('Image upload error', { error });
       throw new Error('Failed to upload image');
     }
   }
@@ -108,7 +109,7 @@ class StorageService {
         bytes: result.bytes,
       };
     } catch (error) {
-      console.error('File upload error:', error);
+      logger.error('File upload error', { error });
       throw new Error('Failed to upload file');
     }
   }
@@ -116,13 +117,13 @@ class StorageService {
   async deleteFile(publicId: string): Promise<void> {
     try {
       if (!this.isCloudinaryConfigured()) {
-        console.warn('Cloudinary not configured, skipping file deletion');
+        logger.warn('Cloudinary not configured, skipping file deletion');
         return;
       }
 
       await cloudinary.uploader.destroy(publicId);
     } catch (error) {
-      console.error('File deletion error:', error);
+      logger.error('File deletion error', { error });
       // Don't throw error, just log it
     }
   }

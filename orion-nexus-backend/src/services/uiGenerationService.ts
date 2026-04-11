@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import logger from '../utils/logger';
 import { ChatContext, GenerateResponseOptions, GeneratedComponentResult, ClaudeMessage } from '../types/ai';
 import { generateLovablePreviewHTML } from './previewService';
 import { promptCache } from './promptCache';
@@ -271,7 +272,7 @@ export async function generateResponse(
       });
       rawText = (completion.content[0] as { type: string; text: string })?.text || '';
     } catch (claudeError) {
-      console.warn('[AI] Claude failed, falling back to OpenAI:', (claudeError as Error).message);
+      logger.warn('[AI] Claude failed, falling back to OpenAI', { error: (claudeError as Error).message });
       const completion = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL_MAIN || 'gpt-4o-mini',
         max_tokens: 16000,
@@ -348,7 +349,7 @@ export async function streamResponse(
         }
       }
     } catch (claudeError) {
-      console.warn('[AI] Claude stream failed, falling back to OpenAI:', (claudeError as Error).message);
+      logger.warn('[AI] Claude stream failed, falling back to OpenAI', { error: (claudeError as Error).message });
       fullContent = '';
 
       const openaiStream = await openai.chat.completions.create({
@@ -500,7 +501,7 @@ ${prompt}
     try {
       result = JSON.parse(jsonMatch[0]);
     } catch (err) {
-      console.error('JSON parse error:', err, 'raw:', rawText);
+      logger.error('JSON parse error', { error: err, raw: rawText });
       throw new Error('Failed to parse JSON from model response');
     }
 

@@ -1,5 +1,6 @@
 import { Pool, QueryResult, PoolClient, QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
+import logger from '../utils/logger';
 
 dotenv.config();
 
@@ -63,37 +64,37 @@ function recordError(): void {
   consecutiveErrors++;
   if (consecutiveErrors >= ERROR_THRESHOLD && circuitOpenAt === null) {
     circuitOpenAt = Date.now();
-    console.error(`[DB] Circuit breaker OPEN after ${ERROR_THRESHOLD} consecutive errors`);
+    logger.error(`[DB] Circuit breaker OPEN after ${ERROR_THRESHOLD} consecutive errors`);
   }
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 export const connectDatabase = async (): Promise<void> => {
   const client = await pool.connect();
-  console.log('[DB] Connected to PostgreSQL');
+  logger.info('[DB] Connected to PostgreSQL');
   client.release();
 
   pool.on('error', (error) => {
-    console.error('[DB] Pool error:', error);
+    logger.error('[DB] Pool error', { error });
     recordError();
   });
 
   pool.on('connect', () => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[DB] New client connected');
+      logger.debug('[DB] New client connected');
     }
   });
 
   pool.on('remove', () => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[DB] Client removed');
+      logger.debug('[DB] Client removed');
     }
   });
 
   const shutdown = async () => {
-    console.log('[DB] Closing pool...');
+    logger.info('[DB] Closing pool...');
     await pool.end();
-    console.log('[DB] Pool closed');
+    logger.info('[DB] Pool closed');
     process.exit(0);
   };
 
@@ -117,13 +118,13 @@ export const query = async <T extends QueryResultRow = Record<string, unknown>>(
     const res = await pool.query<T>(text, params);
     const duration = Date.now() - start;
     if (process.env.NODE_ENV !== 'production' || duration > 500) {
-      console.log('[DB] Query', { duration, rows: res.rowCount });
+      logger.debug('[DB] Query', { duration, rows: res.rowCount });
     }
     recordSuccess();
     return res;
   } catch (error) {
     recordError();
-    console.error('[DB] Query error:', error);
+    logger.error('[DB] Query error', { error });
     throw error;
   }
 };

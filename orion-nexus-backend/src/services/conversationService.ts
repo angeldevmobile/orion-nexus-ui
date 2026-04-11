@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs/promises';
+import logger from '../utils/logger';
 import path from 'path';
 import {
   GenerateCodeOptions,
@@ -78,7 +79,7 @@ Responde en español.`;
     });
     return response.content[0].type === 'text' ? response.content[0].text : 'No pude explicar el código.';
   } catch (error) {
-    console.error('Code Explanation Error (Claude):', error);
+    logger.error('Code Explanation Error (Claude)', { error });
     // Fallback to OpenAI
     const messages: OpenAIMessage[] = [
       { role: 'system', content: 'Eres un experto en explicación de código. Proporciona explicaciones claras y educativas en español.' },
@@ -301,7 +302,7 @@ export async function generateProjectStructure(
     }
     return projectStructure;
   } catch (error) {
-    console.error('Project Structure Generation Error:', error);
+    logger.error('Project Structure Generation Error', { error });
     return getBasicProjectStructure(prompt, framework);
   }
 }
@@ -331,7 +332,7 @@ export async function createProjectFiles(projectStructure: ProjectStructure, bas
     JSON.stringify(packageJson, null, 2),
     'utf8'
   );
-  console.log(`Project ${projectStructure.name} created at ${projectPath}`);
+  logger.info('Project created', { name: projectStructure.name, path: projectPath });
 }
 
 function generateBasicProject(prompt: string, framework: string): FullProjectResult {
@@ -517,7 +518,7 @@ El proyecto debe correr con "npm install && npm run dev".`;
     }
     return result;
   } catch (error) {
-    console.error('Full Project Generation Error:', error);
+    logger.error('Full Project Generation Error', { error });
     return generateBasicProject(prompt, framework);
   }
 }

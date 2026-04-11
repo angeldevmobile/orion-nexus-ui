@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../utils/logger';
 import {
   lemonSqueezySetup,
   createCheckout,
@@ -99,7 +100,7 @@ export const createCheckoutSession = asyncHandler(async (req: Request, res: Resp
   });
 
   if (checkout.error) {
-    console.error('LS checkout error:', JSON.stringify(checkout.error));
+    logger.error('LS checkout error', { error: checkout.error });
     throw createError(checkout.error.message ?? 'Failed to create checkout', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 
