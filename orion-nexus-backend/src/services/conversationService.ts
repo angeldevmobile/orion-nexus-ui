@@ -181,7 +181,7 @@ Genera código de test completo y ejecutable.`;
   return completion.choices[0]?.message?.content || '// No pude generar los tests';
 }
 
-//   Project generation                   ─
+//   Project generation                    
 
 function generateProjectName(prompt: string): string {
   return prompt

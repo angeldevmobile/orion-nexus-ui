@@ -4,7 +4,7 @@ import { HTTP_STATUS } from '../utils/constants';
 import { ApiResponse, PaginationQuery } from '../types/api';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 
-// ─── ARTÍCULOS ───────────────────────────────────────────────────────────────
+//   ARTÍCULOS          
 
 // Obtener artículos con paginación, búsqueda y filtro por categoría
 export const getArticles = asyncHandler(async (req: Request, res: Response) => {
@@ -196,7 +196,7 @@ export const deleteArticle = asyncHandler(async (req: Request, res: Response) =>
   res.status(HTTP_STATUS.OK).json({ success: true, message: 'Article deleted successfully' });
 });
 
-// ─── FAQs ─────────────────────────────────────────────────────────────────────
+//   FAQs            
 
 // Obtener FAQs
 export const getFaqs = asyncHandler(async (req: Request, res: Response) => {

@@ -15,7 +15,7 @@ import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router: Router = Router();
 
-// ─── Artículos (públicos) ─────────────────────────────────────────────────────
+//     Artículos (públicos)                                                      
 
 // GET /api/docs/articles
 router.get('/articles', getArticles);
@@ -26,7 +26,7 @@ router.get('/articles/categories', getCategoryCounts);
 // GET /api/docs/articles/:slug
 router.get('/articles/:slug', getArticleBySlug);
 
-// ─── Artículos (solo admin) ───────────────────────────────────────────────────
+//     Artículos (solo admin)                                                    
 
 // POST /api/docs/articles
 router.post('/articles', authenticateToken, requireAdmin, createArticle);
@@ -37,12 +37,12 @@ router.put('/articles/:id', authenticateToken, requireAdmin, updateArticle);
 // DELETE /api/docs/articles/:id
 router.delete('/articles/:id', authenticateToken, requireAdmin, deleteArticle);
 
-// ─── FAQs (públicos) ──────────────────────────────────────────────────────────
+//     FAQs (públicos)                                                           
 
 // GET /api/docs/faqs
 router.get('/faqs', getFaqs);
 
-// ─── FAQs (solo admin) ────────────────────────────────────────────────────────
+//     FAQs (solo admin)                                                         
 
 // POST /api/docs/faqs
 router.post('/faqs', authenticateToken, requireAdmin, createFaq);

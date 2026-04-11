@@ -6,7 +6,7 @@ dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// ─── Pool configuration ───────────────────────────────────────────────────────
+// Pool configuration  
 //
 // Development:  max=10, no SSL, no keepAlive
 // Production:   max=20, SSL required, keepAlive enabled, statement_timeout
@@ -38,7 +38,7 @@ const pool = new Pool({
     : undefined,
 });
 
-// ─── Circuit-breaker state ────────────────────────────────────────────────────
+// Circuit-breaker state  
 let consecutiveErrors = 0;
 const ERROR_THRESHOLD = 5;          // open circuit after 5 consecutive failures
 const RESET_AFTER_MS = 30_000;      // attempt reset after 30 s
@@ -68,7 +68,7 @@ function recordError(): void {
   }
 }
 
-// ─── Lifecycle ────────────────────────────────────────────────────────────────
+// ─── Lifecycle  ─────────
 export const connectDatabase = async (): Promise<void> => {
   const client = await pool.connect();
   logger.info('[DB] Connected to PostgreSQL');
@@ -102,7 +102,7 @@ export const connectDatabase = async (): Promise<void> => {
   process.on('SIGTERM', shutdown);
 };
 
-// ─── Query helpers ────────────────────────────────────────────────────────────
+// ─── Query helpers  ─────
 export type QueryParams = (string | number | boolean | null | Date)[];
 
 export const query = async <T extends QueryResultRow = Record<string, unknown>>(

@@ -64,7 +64,7 @@ export const deleteAdminTemplate = asyncHandler(async (req: Request, res: Respon
 export const getAdminStats = asyncHandler(async (_req: Request, res: Response) => {
   const [totalsResult, plansResult, recentResult, topResult, dailyCreditResult] =
     await Promise.all([
-      // ── Totales de usuarios ──────────────────────────────────────────
+      // ── Totales de usuarios  ───
       pool.query<{
         total: string;
         new_week: string;
@@ -77,7 +77,7 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
         FROM users
       `),
 
-      // ── Distribución por plan ───────────────────────────────────────
+      //  Distribución por plan  
       pool.query<{ plan: string; count: string }>(`
         SELECT
           COALESCE(preferences->>'subscription', 'free') AS plan,
@@ -87,7 +87,7 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
         ORDER BY count DESC
       `),
 
-      // ── Últimos registros ───────────────────────────────────────────
+      //  Últimos registros  
       pool.query<{
         id: string;
         username: string;
@@ -139,7 +139,7 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
         LIMIT 10
       `),
 
-      // ── Créditos totales consumidos hoy en toda la plataforma ───────
+      //  Créditos totales consumidos hoy en toda la plataforma  
       pool.query<{ total_consumed: string }>(`
         SELECT
           SUM(

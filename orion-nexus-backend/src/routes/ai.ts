@@ -23,7 +23,7 @@ import fs from 'fs/promises';
 
 const router: Router = Router();
 
-// 🔓 Middleware condicional: autenticación solo en producción
+// Middleware condicional: autenticación solo en producción
 const optionalAuth = process.env.NODE_ENV === 'production'
   ? authenticateToken
   : (req: Request, res: Response, next: NextFunction) => next();
@@ -63,7 +63,7 @@ const generateProjectValidation = [
   handleValidationErrors
 ];
 
-// 🆕 Validación para proyecto completo
+// Validación para proyecto completo
 const generateFullProjectValidation = [
   body('prompt').isString().isLength({ min: 1, max: 2000 }),
   body('framework').optional().isString().isIn(['react', 'vue', 'angular', 'nextjs', 'vanilla']),

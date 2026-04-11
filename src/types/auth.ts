@@ -11,6 +11,8 @@ export interface RegisterRequest {
 
 export interface UserPreferences {
   theme: 'light' | 'dark';
+  appTheme?: 'light' | 'dark' | 'auto';
+  accentColor?: string;
   language: string;
   notifications: boolean;
   fontSize?: number;

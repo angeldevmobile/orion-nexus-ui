@@ -216,7 +216,7 @@ interface CursorChangeData {
   timestamp?: number;
 }
 
-// ── In-memory presence (WebSocket-based, no DB polling) ───────────────────────
+//    In-memory presence (WebSocket-based, no DB polling)                        
 const PRESENCE_COLORS = [
   '#00D9FF', '#FF6B6B', '#51CF66', '#FCC419',
   '#845EF7', '#FF922B', '#20C997', '#F06595',
@@ -243,7 +243,7 @@ function getPresenceForRoom(projectId: string): PresenceEntry[] {
   }
   return result;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+//                                                                              
 
 // Socket.IO event handlers
 io.on('connection', (socket: Socket) => {

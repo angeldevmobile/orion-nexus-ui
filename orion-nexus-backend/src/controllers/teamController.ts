@@ -4,9 +4,9 @@ import { HTTP_STATUS } from '../utils/constants';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import crypto from 'crypto';
 
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 // GET /api/team/members  — list members & pending invites
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 export const getTeamMembers = asyncHandler(async (req: Request, res: Response) => {
   const ownerId = req.user?.id;
 
@@ -39,9 +39,9 @@ export const getTeamMembers = asyncHandler(async (req: Request, res: Response) =
   });
 });
 
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 // POST /api/team/invite  — send invite by email
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 export const inviteMember = asyncHandler(async (req: Request, res: Response) => {
   const ownerId = req.user?.id;
   const { email, role = 'editor' } = req.body as { email: string; role?: string };
@@ -95,9 +95,9 @@ export const inviteMember = asyncHandler(async (req: Request, res: Response) => 
   });
 });
 
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 // DELETE /api/team/invites/:id  — cancel a pending invite
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 export const cancelInvite = asyncHandler(async (req: Request, res: Response) => {
   const ownerId = req.user?.id;
   const { id } = req.params;
@@ -116,9 +116,9 @@ export const cancelInvite = asyncHandler(async (req: Request, res: Response) => 
   res.json({ success: true, message: 'Invitation cancelled' });
 });
 
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 // DELETE /api/team/members/:userId  — remove a member
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 export const removeMember = asyncHandler(async (req: Request, res: Response) => {
   const ownerId = req.user?.id;
   const { userId } = req.params;
@@ -137,9 +137,9 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
   res.json({ success: true, message: 'Member removed from workspace' });
 });
 
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 // GET /api/team/presence/:projectId  — get active editors
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 export const getPresence = asyncHandler(async (req: Request, res: Response) => {
   const { projectId } = req.params;
   // Users active in the last 30 seconds
@@ -157,9 +157,9 @@ export const getPresence = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, data: result.rows });
 });
 
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 // POST /api/team/presence/:projectId  — heartbeat (upsert)
-// ────────────────────────────────────────────────────────────────
+//                                                                 
 const PRESENCE_COLORS = [
   '#00D9FF', '#FF6B6B', '#51CF66', '#FCC419',
   '#845EF7', '#FF922B', '#20C997', '#F06595',

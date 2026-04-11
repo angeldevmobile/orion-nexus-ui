@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AuthContext, UserProfile } from "./AuthContextType";
+import type { UserPreferences } from "@/types/auth";
 
 const ACCENT_COLORS: Record<string, string> = {
   cyan:   "198 93% 60%",
@@ -9,17 +10,17 @@ const ACCENT_COLORS: Record<string, string> = {
   orange: "25 95% 53%",
 };
 
-function applyAppearance(prefs: Record<string, unknown> | undefined) {
+function applyAppearance(prefs: UserPreferences | undefined) {
   const root = document.documentElement;
 
   // Theme
-  const appTheme = prefs?.appTheme ? String(prefs.appTheme) : "dark";
+  const appTheme = prefs?.appTheme ?? "dark";
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const isDark = appTheme === "dark" || (appTheme === "auto" && prefersDark);
   root.classList.toggle("light", !isDark);
 
   // Accent color
-  const accentColor = prefs?.accentColor ? String(prefs.accentColor) : "cyan";
+  const accentColor = prefs?.accentColor ?? "cyan";
   const hsl = ACCENT_COLORS[accentColor] ?? ACCENT_COLORS.cyan;
   root.style.setProperty("--primary", hsl);
   root.style.setProperty("--accent", hsl);
@@ -40,13 +41,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(storedToken);
       setUser(parsedUser);
       setIsAuthenticated(true);
-      applyAppearance(parsedUser.preferences as Record<string, unknown> | undefined);
+      applyAppearance(parsedUser.preferences);
     }
   }, []);
 
   // Re-apply whenever user preferences change
   useEffect(() => {
-    applyAppearance(user?.preferences as Record<string, unknown> | undefined);
+    applyAppearance(user?.preferences);
   }, [user]);
 
   const login = (newToken: string, newUser: UserProfile) => {

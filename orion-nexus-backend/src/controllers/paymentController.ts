@@ -137,7 +137,7 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
   const { meta, data } = req.body;
   const eventName: string = meta?.event_name ?? '';
 
-  // ── Suscripción o pago único creado ──────────────────────────────────────
+  //   Suscripción o pago único creado              
   if (eventName === 'subscription_created' || eventName === 'order_created') {
     const custom = meta?.custom_data ?? data?.attributes?.first_order_item?.custom_data ?? {};
     const userId: string = custom.userId ?? custom.user_id;
@@ -171,7 +171,7 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
     }
   }
 
-  // ── Cambio de plan (upgrade / downgrade) ─────────────────────────────────
+  //   Cambio de plan (upgrade / downgrade)            
   if (eventName === 'subscription_updated') {
     const subId = data?.id as string | undefined;
     if (subId) {
@@ -198,7 +198,7 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
     }
   }
 
-  // ── Suscripción cancelada inmediatamente ──────────────────────────────────
+  //   Suscripción cancelada inmediatamente             
   if (eventName === 'subscription_cancelled') {
     const subId = data?.id as string | undefined;
     if (subId) {
@@ -218,7 +218,7 @@ export const handleWebhook = asyncHandler(async (req: Request, res: Response) =>
     }
   }
 
-  // ── Suscripción expirada definitivamente → bajar a free ───────────────────
+  //   Suscripción expirada definitivamente → bajar a free        
   if (eventName === 'subscription_expired') {
     const subId = data?.id as string | undefined;
     if (subId) {
