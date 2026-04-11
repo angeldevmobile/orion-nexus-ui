@@ -6,6 +6,13 @@ import { CreateProjectRequest, UpdateProjectRequest } from '../types/project';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { emailService } from '../services/emailService';
 
+// PostgreSQL jsonb columns come back as objects already — only parse if it's a string
+function parseJson<T>(value: unknown, fallback: T): T {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'object') return value as T;
+  try { return JSON.parse(value as string); } catch { return fallback; }
+}
+
 // Crear proyecto
 export const createProject = asyncHandler(async (req: Request, res: Response) => {
   const { name, description, settings, isPublic }: CreateProjectRequest = req.body;
@@ -50,9 +57,12 @@ export const createProject = asyncHandler(async (req: Request, res: Response) =>
     path: '/'
   }];
 
+  const language = settings?.language ?? 'javascript';
+  const framework = settings?.framework ?? 'vanilla';
+
   const query = `
-    INSERT INTO projects (name, description, owner_id, settings, is_public, files)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO projects (name, description, owner_id, settings, is_public, files, language, framework)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
   `;
   const values = [
@@ -61,7 +71,9 @@ export const createProject = asyncHandler(async (req: Request, res: Response) =>
     req.user?.id,
     JSON.stringify(settings),
     isPublic || false,
-    JSON.stringify(files)
+    JSON.stringify(files),
+    language,
+    framework,
   ];
 
   const result = await pool.query(query, values);
@@ -117,8 +129,8 @@ export const getPublicProjects = asyncHandler(async (req: Request, res: Response
 
   const projects = result.rows.map(row => ({
     ...row,
-    files: JSON.parse(row.files || '[]'),
-    settings: JSON.parse(row.settings || '{}'),
+    files: parseJson(row.files, []),
+    settings: parseJson(row.settings, {}),
     owner: {
       id: row.owner_id,
       username: row.owner_username,
@@ -169,8 +181,8 @@ export const getProjects = asyncHandler(async (req: Request, res: Response) => {
 
   const projects = projectsResult.rows.map(row => ({
     ...row,
-    files: JSON.parse(row.files || '[]'),
-    settings: JSON.parse(row.settings || '{}'),
+    files: parseJson(row.files, []),
+    settings: parseJson(row.settings, {}),
     owner: {
       id: row.owner_id,
       username: row.owner_username,
@@ -227,8 +239,8 @@ export const getProjectById = asyncHandler(async (req: Request, res: Response) =
     throw createError('Access denied', HTTP_STATUS.FORBIDDEN);
   }
 
-  project.files = JSON.parse(project.files || '[]');
-  project.settings = JSON.parse(project.settings || '{}');
+  project.files = parseJson(project.files, []);
+  project.settings = parseJson(project.settings, {});
   project.owner = {
     id: project.owner_id,
     username: project.owner_username,
@@ -323,8 +335,8 @@ export const updateProject = asyncHandler(async (req: Request, res: Response) =>
 
   const updatedProject = {
     ...updateResult.rows[0],
-    files: JSON.parse(updateResult.rows[0].files || '[]'),
-    settings: JSON.parse(updateResult.rows[0].settings || '{}'),
+    files: parseJson(updateResult.rows[0].files, []),
+    settings: parseJson(updateResult.rows[0].settings, {}),
     owner: ownerResult.rows[0]
   };
 
@@ -393,8 +405,8 @@ export const updateProjectFiles = asyncHandler(async (req: Request, res: Respons
 
   const updatedProject = {
     ...updateResult.rows[0],
-    files: JSON.parse(updateResult.rows[0].files || '[]'),
-    settings: JSON.parse(updateResult.rows[0].settings || '{}'),
+    files: parseJson(updateResult.rows[0].files, []),
+    settings: parseJson(updateResult.rows[0].settings, {}),
     owner: ownerResult.rows[0]
   };
 
@@ -552,6 +564,54 @@ export const pushToGitHub = asyncHandler(async (req: Request, res: Response) => 
     success: true,
     message: 'Project pushed to GitHub successfully',
     data: { repoUrl: repo.html_url, repoName: repo.full_name },
+  };
+
+  res.status(HTTP_STATUS.OK).json(response);
+});
+
+// @route   POST /api/projects/:id/publish
+// @desc    Publish a project as template or community post
+// @access  Private
+export const publishProject = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { type } = req.body as { type: 'template' | 'community' };
+  const userId = parseInt(req.user?.id || '0');
+
+  const checkResult = await pool.query(
+    'SELECT id, owner_id, settings FROM projects WHERE id = $1',
+    [id]
+  );
+
+  if (checkResult.rows.length === 0) {
+    throw createError('Project not found', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (checkResult.rows[0].owner_id !== userId && req.user?.role !== 'admin') {
+    throw createError('Only the project owner can publish it', HTTP_STATUS.FORBIDDEN);
+  }
+
+  const currentSettings = checkResult.rows[0].settings
+    ? (typeof checkResult.rows[0].settings === 'string'
+        ? JSON.parse(checkResult.rows[0].settings)
+        : checkResult.rows[0].settings)
+    : {};
+
+  const updatedSettings = { ...currentSettings, publishType: type };
+
+  const result = await pool.query(
+    `UPDATE projects
+     SET is_public = true,
+         settings  = $1,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2
+     RETURNING *`,
+    [JSON.stringify(updatedSettings), id]
+  );
+
+  const response: ApiResponse = {
+    success: true,
+    message: type === 'template' ? 'Project published as template' : 'Project published to community',
+    data: result.rows[0],
   };
 
   res.status(HTTP_STATUS.OK).json(response);

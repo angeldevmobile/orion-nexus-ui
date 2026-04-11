@@ -7,7 +7,8 @@ import {
   updateProject,
   deleteProject,
   updateProjectFiles,
-  pushToGitHub
+  pushToGitHub,
+  publishProject
 } from '../controllers/projectController';
 import { authenticateToken } from '../middleware/auth';
 import { validateProject } from '../middleware/validation';
@@ -54,5 +55,10 @@ router.put('/:id/files', authenticateToken, updateProjectFiles);
 // @desc    Push project to user's GitHub account
 // @access  Private
 router.post('/:id/push-to-github', authenticateToken, pushToGitHub);
+
+// @route   POST /api/projects/:id/publish
+// @desc    Publish project as template or community post
+// @access  Private
+router.post('/:id/publish', authenticateToken, publishProject);
 
 export default router;

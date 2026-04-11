@@ -403,7 +403,7 @@ export default function AIChat() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const userPlan = user?.preferences?.subscription ?? (user as unknown as { plan?: string })?.plan ?? "free";
-  const canPublish = userPlan === "pro" || userPlan === "business" || userPlan === "enterprise";
+  const canPublish = isAdmin || userPlan === "pro" || userPlan === "business" || userPlan === "enterprise";
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportName, setExportName] = useState("mi-proyecto");
   const [chatVisible, setChatVisible] = useState(true);

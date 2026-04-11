@@ -386,8 +386,8 @@ export const useChat = create<ChatStore>((set, get) => ({
       const allSource = currentUiData.files
         .filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts') || f.path.endsWith('.css'));
 
-      // Prioritize structural files so the AI always sees the router and main entry points
-      const PRIORITY = ['App.tsx', 'App.ts', 'main.tsx', 'router', 'routes', 'index.tsx'];
+      // Prioritize structural files so the AI always sees the router, nav and main entry points
+      const PRIORITY = ['App.tsx', 'App.ts', 'main.tsx', 'router', 'routes', 'index.tsx', 'Navbar', 'navbar', 'Nav.tsx', 'Layout'];
       const sorted = [
         ...allSource.filter(f => PRIORITY.some(p => f.path.includes(p))),
         ...allSource.filter(f => !PRIORITY.some(p => f.path.includes(p))),
@@ -395,7 +395,7 @@ export const useChat = create<ChatStore>((set, get) => ({
 
       if (sorted.length > 0) {
         // Include complete files until budget — always cut on file boundaries, never mid-file
-        let budget = 12000;
+        let budget = 24000;
         const includedFiles: string[] = [];
         for (const f of sorted) {
           const entry = `// FILE: ${f.path}\n${f.content}`;
@@ -430,14 +430,25 @@ export const useChat = create<ChatStore>((set, get) => ({
         },
         async (enriched) => {
           enrichedData = enriched;
+
+          // Merge incoming files with existing project — AI only returns changed/new files
+          const existingFiles = useChatStore.getState().uiData?.files ?? [];
+          const incomingPaths = new Set(enriched.files.map(f => f.path));
+          const mergedFiles = [
+            ...existingFiles.filter(f => !incomingPaths.has(f.path)),
+            ...enriched.files,
+          ];
+          enrichedData = { ...enriched, files: mergedFiles };
+
           set({ generatedCode: enriched.reactCode, generatingFiles: [] });
           if (enriched.files.length > 0) {
             const isRunning = useChatStore.getState().wcStatus === 'ready';
             if (isRunning) {
+              // Hot-update only the changed files — no reinstall
               await bootWebContainer(enriched.files);
             } else {
-              await writeFilesToVirtualFS(enriched.files);
-              bootWebContainer(enriched.files);
+              await writeFilesToVirtualFS(mergedFiles);
+              bootWebContainer(mergedFiles);
             }
           }
         },
@@ -478,7 +489,7 @@ export const useChat = create<ChatStore>((set, get) => ({
         reactCode: enrichedData.reactCode,
         previewHtml: enrichedData.previewHtml,
         designInfo: enrichedData.designInfo ?? { colors: {}, effects: [], layout: '', components: [] },
-        files: enrichedData.files,
+        files: enrichedData.files, // already merged above
         timestamp: enrichedData.timestamp,
       };
       messageContent = enrichedData.description || 'Interfaz generada exitosamente.';
