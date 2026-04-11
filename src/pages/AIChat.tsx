@@ -23,7 +23,7 @@ import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useChat, Message, WcStatus } from "@/hooks/useChat";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiService } from "@/service/ApiService";
@@ -386,7 +386,9 @@ export default function AIChat() {
     sendMessage,
     sendFullProjectRequest,
     clearChat,
-  } = useChat() as ReturnType<typeof useChat> & { wcError: string };
+    autoFixError,
+    loadTemplateFiles,
+  } = useChat() as ReturnType<typeof useChat> & { wcError: string; autoFixError: (e: string) => Promise<void> };
 
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
@@ -399,8 +401,35 @@ export default function AIChat() {
   }, [uiData?.files]);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Load template when navigated with ?fork=ID
+  useEffect(() => {
+    const forkId = searchParams.get('fork');
+    if (!forkId || messages.length > 0) return;
+
+    apiService.get<{ data: { name: string; files: Record<string, string> | { path: string; content: string }[] } }>(
+      `/projects/${forkId}`
+    ).then(res => {
+      const { name, files } = res.data;
+      let fileEntries: { path: string; content: string }[];
+      if (Array.isArray(files)) {
+        fileEntries = files.filter(f => f.path && !f.path.endsWith('/'));
+      } else {
+        fileEntries = Object.entries(files ?? {})
+          .filter(([path]) => path && !path.endsWith('/'))
+          .map(([path, content]) => ({ path, content }));
+      }
+      if (fileEntries.length > 0) {
+        loadTemplateFiles(name, fileEntries);
+      }
+    }).catch(() => {
+      toast({ title: "Error", description: "No se pudo cargar la plantilla.", variant: "destructive" });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const isAdmin = user?.role === "admin";
   const userPlan = user?.preferences?.subscription ?? (user as unknown as { plan?: string })?.plan ?? "free";
   const canPublish = isAdmin || userPlan === "pro" || userPlan === "business" || userPlan === "enterprise";
@@ -409,6 +438,8 @@ export default function AIChat() {
   const [chatVisible, setChatVisible] = useState(true);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishName, setPublishName] = useState("");
+  const [publishDescription, setPublishDescription] = useState("");
   const [pushingGitHub, setPushingGitHub] = useState(false);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
 
@@ -475,20 +506,45 @@ export default function AIChat() {
     try {
       const snapshot = await import("@/editor/fileSystem/lightningFsAdapter")
         .then(m => m.dumpFsToJson()).catch(() => ({}));
-      const name = `Proyecto ${new Date().toLocaleDateString("es")}`;
+
+      const name = publishName.trim() || `Proyecto ${new Date().toLocaleDateString("es")}`;
+      const description = publishDescription.trim();
+
+      // Capture preview screenshot from the iframe
+      let thumbnail: string | undefined;
+      try {
+        const iframe = document.getElementById('preview-iframe') as HTMLIFrameElement | null;
+        if (iframe?.contentWindow && previewUrl) {
+          thumbnail = await new Promise<string | undefined>((resolve) => {
+            const timeout = setTimeout(() => resolve(undefined), 8000);
+            const handler = (ev: MessageEvent) => {
+              if (ev.data?.type === 'orion-screenshot') {
+                clearTimeout(timeout);
+                window.removeEventListener('message', handler);
+                resolve(ev.data.dataUrl as string | undefined);
+              }
+            };
+            window.addEventListener('message', handler);
+            iframe.contentWindow!.postMessage({ type: 'orion-capture' }, '*');
+          });
+        }
+      } catch { /* ignore — publish without thumbnail */ }
+
       const res = await apiService.post<{ data: { id: string } }>("/projects", {
         name,
-        description: "",
+        description,
         isPublic: type === "community",
-        settings: { framework: "vanilla", language: "javascript" },
+        settings: { framework: "react", language: "typescript", thumbnail },
         files: snapshot,
       });
       await apiService.post(`/projects/${res.data.id}/publish`, { type });
       toast({
         title: type === "template" ? "Publicado como plantilla" : "Publicado en comunidad",
-        description: `Tu proyecto ya está disponible ${type === "template" ? "como plantilla" : "en la comunidad"}.`,
+        description: `"${name}" ya está disponible ${type === "template" ? "como plantilla" : "en la comunidad"}.`,
       });
       setPublishOpen(false);
+      setPublishName("");
+      setPublishDescription("");
     } catch {
       toast({ title: "Error", description: "No se pudo publicar el proyecto.", variant: "destructive" });
     } finally {
@@ -510,6 +566,77 @@ export default function AIChat() {
   useEffect(() => {
     setViteReady(false);
   }, [previewUrl]);
+
+  // Auto-fix: capture HMR errors from the preview iframe and trigger AI correction
+  useEffect(() => {
+    if (wcStatus !== 'ready') return;
+
+    let lastFix = 0;
+    const failedModules = new Set<string>();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleMessage = (event: MessageEvent) => {
+      // Vite HMR client posts messages from the iframe origin
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      // Vite HMR error format: { type: 'error', err: { message, stack } }
+      if (data.type === 'error' && data.err?.message) {
+        const errMsg: string = data.err.message + (data.err.stack ? '\n' + data.err.stack : '');
+        const now = Date.now();
+        if (now - lastFix < 10000) return; // debounce: max one fix per 10s
+        lastFix = now;
+        autoFixError(`Error en el preview (HMR):\n\`\`\`\n${errMsg}\n\`\`\``);
+      }
+    };
+
+    // Also watch for repeated "Failed to reload" via MutationObserver on iframe load failures
+    const handleIframeError = () => {
+      const iframe = document.getElementById('preview-iframe') as HTMLIFrameElement | null;
+      if (!iframe) return;
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) return;
+        // If iframe loaded an error page, the body will be minimal
+        const bodyText = iframeDoc.body?.innerText ?? '';
+        if (bodyText.includes('Failed to resolve') || bodyText.includes('Cannot find module')) {
+          const now = Date.now();
+          if (now - lastFix < 10000) return;
+          lastFix = now;
+          autoFixError(`Error en el preview:\n\`\`\`\n${bodyText.slice(0, 500)}\n\`\`\``);
+        }
+      } catch { /* cross-origin — ignore */ }
+    };
+
+    // Intercept console errors forwarded via postMessage from Vite's error overlay
+    const handleViteOverlay = (event: MessageEvent) => {
+      if (typeof event.data === 'string' && event.data.startsWith('vite-hmr-error:')) {
+        const errMsg = event.data.slice('vite-hmr-error:'.length);
+        failedModules.add(errMsg);
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          const now = Date.now();
+          if (now - lastFix < 10000) return;
+          lastFix = now;
+          const combined = Array.from(failedModules).join('\n');
+          failedModules.clear();
+          autoFixError(`Módulos que fallaron al recargar (HMR):\n\`\`\`\n${combined}\n\`\`\``);
+        }, 2000);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('message', handleViteOverlay);
+    const iframe = document.getElementById('preview-iframe') as HTMLIFrameElement | null;
+    iframe?.addEventListener('load', handleIframeError);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('message', handleViteOverlay);
+      iframe?.removeEventListener('load', handleIframeError);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  }, [wcStatus, autoFixError]);
 
   const handleSend = async () => {
     const prompt = message.trim();
@@ -1072,16 +1199,39 @@ export default function AIChat() {
       </DialogContent>
     </Dialog>
 
-    <Dialog open={publishOpen} onOpenChange={(v) => { if (!v) setPublishOpen(false); }}>
+    <Dialog open={publishOpen} onOpenChange={(v) => { if (!v) { setPublishOpen(false); setPublishName(""); setPublishDescription(""); } }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Publicar proyecto</DialogTitle>
           <DialogDescription>
-            Elige cómo quieres compartir tu proyecto generado
+            Dale un nombre y descripción antes de compartirlo
           </DialogDescription>
         </DialogHeader>
 
-        <div className={`grid gap-3 pt-2 ${isAdmin ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Nombre del proyecto</label>
+            <input
+              type="text"
+              value={publishName}
+              onChange={e => setPublishName(e.target.value)}
+              placeholder={`Proyecto ${new Date().toLocaleDateString("es")}`}
+              className="w-full px-3 py-2 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Descripción <span className="text-muted-foreground/50">(opcional)</span></label>
+            <textarea
+              value={publishDescription}
+              onChange={e => setPublishDescription(e.target.value)}
+              placeholder="¿Qué hace este proyecto?"
+              rows={2}
+              className="w-full px-3 py-2 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className={`grid gap-3 pt-1 ${isAdmin ? "grid-cols-2" : "grid-cols-1"}`}>
           {isAdmin && (
             <button
               disabled={publishing}

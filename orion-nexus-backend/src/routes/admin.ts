@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
-import { getAdminStats } from '../controllers/adminController';
+import { getAdminStats, getAdminTemplates, deleteAdminTemplate } from '../controllers/adminController';
 
 const router = Router();
 
@@ -8,5 +8,7 @@ const router = Router();
 router.use(authenticateToken, requireAdmin);
 
 router.get('/stats', getAdminStats);
+router.get('/templates', getAdminTemplates);
+router.delete('/templates/:id', deleteAdminTemplate);
 
 export default router;

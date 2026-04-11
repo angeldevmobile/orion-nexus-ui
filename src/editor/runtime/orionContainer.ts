@@ -180,12 +180,20 @@ export async function runDevServer(
 
         // Detect Vite error blocks and forward to onError
         if (onError) {
-          if (trimmed.includes('[plugin:vite') || trimmed.includes('error:') || trimmed.startsWith('Error:')) {
+          const isViteError =
+            trimmed.includes('[plugin:vite') ||
+            trimmed.includes('error:') ||
+            trimmed.startsWith('Error:') ||
+            trimmed.includes('[vite] Internal server error') ||
+            trimmed.includes('Failed to resolve import') ||
+            trimmed.includes('Cannot find module') ||
+            (trimmed.includes('[vite]') && trimmed.toLowerCase().includes('error'));
+
+          if (isViteError) {
             inErrorBlock = true;
             errorBuffer = trimmed;
           } else if (inErrorBlock) {
             if (trimmed.length === 0) {
-              // Empty line ends the error block
               if (errorBuffer) onError(errorBuffer);
               errorBuffer = '';
               inErrorBlock = false;

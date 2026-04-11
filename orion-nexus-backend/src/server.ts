@@ -21,6 +21,7 @@ interface RequestWithRawBody extends Request {
 // Import utilities
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
+import logger from './utils/logger';
 import { aiQueue } from './services/aiQueue';
 import { promptCache } from './services/promptCache';
 
@@ -107,8 +108,8 @@ app.use(passport.initialize());
 
 // Request logging middleware (development only)
 if (process.env.NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  app.use((req, _res, next) => {
+    logger.debug(`${req.method} ${req.path}`);
     next();
   });
 }
@@ -232,7 +233,7 @@ function getPresenceForRoom(projectId: string): PresenceEntry[] {
 
 // Socket.IO event handlers
 io.on('connection', (socket: Socket) => {
-  console.log(` User connected: ${socket.id}`);
+  logger.info('User connected', { socketId: socket.id });
 
   // Join project room + register presence
   socket.on('join-project', (data: JoinProjectData) => {
@@ -253,7 +254,7 @@ io.on('connection', (socket: Socket) => {
 
     // Broadcast updated list to ALL in room (including sender)
     io.to(data.projectId).emit('presence-update', getPresenceForRoom(data.projectId));
-    console.log(` User ${data.userId} joined project ${data.projectId}`);
+    logger.info('User joined project', { userId: data.userId, projectId: data.projectId });
   });
 
   // Handle code changes

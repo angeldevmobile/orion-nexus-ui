@@ -15,8 +15,11 @@ import {
   AlertTriangle,
   Activity,
   Database,
+  Bookmark,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface PlanRow   { plan: string; count: number }
 interface SignupRow { id: string; username: string; email: string; plan: string; joined: string }
@@ -41,6 +44,15 @@ interface AdminStats {
 }
 
 interface AdminResponse { success: boolean; data: AdminStats }
+
+interface AdminTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  owner_username: string;
+  likes_count: number;
+  created_at: string;
+}
 
 const PLAN_COLORS: Record<string, string> = {
   free:       "bg-zinc-700 text-zinc-200",
@@ -70,6 +82,36 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [templates, setTemplates] = useState<AdminTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const res = await apiService.get<{ success: boolean; data: AdminTemplate[] }>("/admin/templates");
+      if (res.success) setTemplates(res.data);
+    } catch {
+      // silent
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar la plantilla "${name}"? Esta acción no se puede deshacer.`)) return;
+    setDeletingId(id);
+    try {
+      await apiService.delete(`/admin/templates/${id}`);
+      setTemplates(prev => prev.filter(t => t.id !== id));
+      toast({ title: "Plantilla eliminada", description: `"${name}" fue eliminada correctamente.` });
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "No se pudo eliminar.", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const fetchStats = async () => {
     setLoading(true);
@@ -87,7 +129,7 @@ export default function Admin() {
     }
   };
 
-  useEffect(() => { fetchStats(); }, []);
+  useEffect(() => { fetchStats(); fetchTemplates(); }, []);
 
   const planMap: Record<string, number> = {};
   stats?.plans.forEach((p) => { planMap[p.plan] = p.count; });
@@ -268,6 +310,64 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Plantillas */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bookmark className="w-4 h-4 text-violet-400" />
+                  Plantillas públicas
+                </CardTitle>
+                <CardDescription>
+                  {templates.length} plantilla{templates.length !== 1 ? "s" : ""} publicada{templates.length !== 1 ? "s" : ""}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingTemplates ? (
+                  <Skeleton rows={4} />
+                ) : templates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No hay plantillas publicadas.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground border-b border-border">
+                        <th className="pb-2 pr-3 font-medium">Nombre</th>
+                        <th className="pb-2 pr-3 font-medium">Autor</th>
+                        <th className="pb-2 pr-3 font-medium text-center">Likes</th>
+                        <th className="pb-2 pr-3 font-medium">Fecha</th>
+                        <th className="pb-2 font-medium" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {templates.map((t) => (
+                        <tr key={t.id} className="border-b border-border/50 last:border-0">
+                          <td className="py-2 pr-3">
+                            <p className="font-medium truncate max-w-[180px]">{t.name}</p>
+                            {t.description && (
+                              <p className="text-xs text-muted-foreground truncate max-w-[180px]">{t.description}</p>
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 text-muted-foreground">{t.owner_username}</td>
+                          <td className="py-2 pr-3 text-center font-mono">{t.likes_count}</td>
+                          <td className="py-2 pr-3 text-xs text-muted-foreground whitespace-nowrap">{t.created_at}</td>
+                          <td className="py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
+                              disabled={deletingId === t.id}
+                              onClick={() => handleDeleteTemplate(t.id, t.name)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
 
             {/* AI System */}
             {stats?.aiSystem && (

@@ -5,13 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import {
   Zap, Code2, Sparkles, Shield, Users, ArrowRight,
-  Upload, Heart, Eye, Bookmark, Globe, CheckCircle2,
+  Upload, Heart, Eye, Bookmark, Globe, CheckCircle2, Trash2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { UploadProjectModal } from "@/components/UploadProjectModal";
 import { ViewProjectModal } from "@/components/ViewProjectModal";
 import { useState, useEffect } from "react";
 import { apiService } from "@/service/ApiService";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 type Project = {
   name: string;
@@ -56,6 +58,10 @@ const FW_GRADIENT: Record<string, string> = {
 function CommunityShowcase() {
   const [templates, setTemplates] = useState<PublicTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
     apiService.get<{ data: PublicTemplate[] }>("/projects/public?type=template&limit=6")
@@ -63,6 +69,20 @@ function CommunityShowcase() {
       .catch(() => setTemplates([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar la plantilla "${name}"?`)) return;
+    setDeletingId(id);
+    try {
+      await apiService.delete(`/admin/templates/${id}`);
+      setTemplates(prev => prev.filter(t => t.id !== id));
+      toast({ title: "Plantilla eliminada", description: `"${name}" eliminada correctamente.` });
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "No se pudo eliminar.", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (!loading && templates.length === 0) return null;
 
@@ -105,10 +125,28 @@ function CommunityShowcase() {
                   className="bg-card border-border hover:border-violet-500/50 transition-all duration-300 group overflow-hidden hover:shadow-lg hover:shadow-violet-500/10"
                 >
                   <div className={`h-36 bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden`}>
-                    {tpl.settings?.thumbnail
-                      ? <img src={tpl.settings.thumbnail} alt={tpl.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      : <Bookmark className="w-10 h-10 opacity-20 text-violet-400" />
-                    }
+                    {tpl.settings?.thumbnail ? (
+                      <img
+                        src={tpl.settings.thumbnail}
+                        alt={tpl.name}
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 opacity-60">
+                        <Bookmark className="w-8 h-8 text-violet-400" />
+                        <span className="text-xs text-white/50 font-medium px-4 text-center line-clamp-2">{tpl.name}</span>
+                      </div>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDelete(tpl.id, tpl.name)}
+                        disabled={deletingId === tpl.id}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 disabled:opacity-50"
+                        title="Eliminar plantilla"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-white" />
+                      </button>
+                    )}
                   </div>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{tpl.name}</CardTitle>
@@ -118,7 +156,7 @@ function CommunityShowcase() {
                   </CardHeader>
                   <CardContent>
                     <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2" asChild>
-                      <Link to={`/editor?fork=${tpl.id}`}>
+                      <Link to={`/ai-chat?fork=${tpl.id}`}>
                         Usar plantilla
                         <ArrowRight className="w-4 h-4" />
                       </Link>

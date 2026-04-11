@@ -492,7 +492,7 @@ export const pushToGitHub = asyncHandler(async (req: Request, res: Response) => 
   const repo = await createRepoRes.json() as { full_name: string; html_url: string };
 
   // 3. Construir README con firma de Orion
-  const settings = project.settings ? JSON.parse(project.settings) : {};
+  const settings = parseJson(project.settings, {}) as Record<string, unknown>;
   const framework = settings.framework ?? 'vanilla';
 
   const readmeContent = [
@@ -551,7 +551,7 @@ export const pushToGitHub = asyncHandler(async (req: Request, res: Response) => 
   await uploadFile('README.md', readmeContent);
 
   // Archivos del proyecto
-  const projectFiles: ProjectFile[] = JSON.parse(project.files || '[]');
+  const projectFiles: ProjectFile[] = parseJson(project.files, []);
   for (const file of projectFiles) {
     if (!file.name || file.content === undefined) continue;
     const cleanPath = file.path && file.path !== '/'
@@ -590,11 +590,7 @@ export const publishProject = asyncHandler(async (req: Request, res: Response) =
     throw createError('Only the project owner can publish it', HTTP_STATUS.FORBIDDEN);
   }
 
-  const currentSettings = checkResult.rows[0].settings
-    ? (typeof checkResult.rows[0].settings === 'string'
-        ? JSON.parse(checkResult.rows[0].settings)
-        : checkResult.rows[0].settings)
-    : {};
+  const currentSettings = parseJson(checkResult.rows[0].settings, {}) as Record<string, unknown>;
 
   const updatedSettings = { ...currentSettings, publishType: type };
 

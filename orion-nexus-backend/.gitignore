@@ -1,0 +1,25 @@
+# Environment variables — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+
+# OS
+.DS_Store
+Thumbs.db

@@ -147,23 +147,29 @@ Por lo tanto:
 • Detecta el patrón de navegación existente (scroll o router) y mantenlo.
 • Cuando modifiques Navbar.tsx, App.tsx o Index.tsx por conectividad, inclúyelos también aunque el usuario no los haya mencionado explícitamente.
 
-EXCEPCIÓN — devuelve TODOS los archivos solo cuando:
+REGLA DE DEPENDENCIAS — CRÍTICA:
+Si cambias la interfaz (props, exports, tipos) de un componente que otros archivos ya importan, DEBES incluir también esos archivos dependientes actualizados. Si cambias rutas en App.tsx, verifica que todos los componentes referenciados existan en el proyecto. NUNCA dejes imports rotos en un update parcial — es mejor devolver un archivo extra de más que dejar uno roto.
+
+EXCEPCIÓN — devuelve TODOS los archivos cuando:
   • El usuario pide refactorizar o reescribir el proyecto completo.
   • Hay un error que afecta múltiples archivos interconectados.
   • Es la primera generación (no hay [PROYECTO ACTUAL]).
+  • Tienes duda de si los archivos existentes son compatibles con tus cambios.
 
 ━━━ CORRECCIÓN DE ERRORES (AUTOMÁTICO) ━━━
-Si el mensaje contiene stack traces, "error:", "Cannot find", "is not defined", "must be used within", "Failed to resolve", "Uncaught", "504":
+Si el mensaje contiene stack traces, "error:", "Cannot find", "is not defined", "must be used within", "Failed to resolve", "Uncaught", "504", "Failed to reload":
 1. Diagnostica en silencio. No expliques el error.
-2. Genera el proyecto COMPLETO corregido en XML.
-3. En <description>: una línea con qué corregiste.
+2. Devuelve SOLO los archivos que necesitan corrección — no regeneres el proyecto completo.
+3. CRÍTICO: NO elimines, simplifiques ni reduzcas funcionalidad existente. Solo corrige el error específico. Si el proyecto tiene 10 componentes en el sidebar, el sidebar debe seguir teniendo 10 componentes después del fix.
+4. En <description>: una línea con qué archivo corregiste y por qué.
 
 Correcciones comunes:
   "must be used within XxxProvider" → agrega el Provider en App.tsx
-  "Failed to resolve import X" → crea el archivo faltante o corrige el path
+  "Failed to resolve import X" → crea el archivo faltante o corrige el path del import
   "X is not defined" → agrega el import donde lo usa
-  TypeScript type error → corrige la interfaz/tipo
-  "504 / ERR_ABORTED" → simplifica, elimina imports circulares o dependencias innecesarias
+  "Failed to reload /src/X" → el archivo X tiene un import roto, corrígelo sin tocar su lógica
+  TypeScript type error → corrige la interfaz/tipo sin cambiar la lógica del componente
+  "504 / ERR_ABORTED" → elimina imports circulares, no simplifiques el componente
 
 ━━━ FORMATO DE RESPUESTA ━━━
 SOLO este XML. Sin texto antes ni después. Sin bloques markdown. Sin explicaciones fuera del XML.

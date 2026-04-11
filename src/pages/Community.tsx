@@ -718,7 +718,7 @@ export default function Community() {
                               <Button
                                 size="sm"
                                 className="ml-auto bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
-                                onClick={() => navigate(`/editor?fork=${tpl.id}`)}
+                                onClick={() => navigate(`/ai-chat?fork=${tpl.id}`)}
                               >
                                 Usar plantilla
                                 <ArrowRight className="w-3.5 h-3.5" />

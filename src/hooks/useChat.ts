@@ -32,6 +32,7 @@ interface ChatStore {
   sendFullProjectRequest: (prompt: string, framework?: string) => Promise<void>;
   autoFixError: (error: string) => Promise<void>;
   clearChat: () => void;
+  loadTemplateFiles: (name: string, files: { path: string; content: string }[]) => Promise<void>;
 }
 
 //  helpers 
@@ -65,21 +66,35 @@ async function handleViteError(error: string) {
     return;
   }
 
-  // Case 2: Code error → send to AI for automatic fix 
+  // Case 2: Code error → send to AI for automatic fix
   const state = useChatStore.getState();
   if (state.sending) return; // already working
 
   const currentFiles = state.uiData?.files ?? [];
-  const fileContext = currentFiles
-    .filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts'))
-    .map(f => `// ${f.path}\n${f.content}`)
-    .join('\n\n---\n\n')
-    .slice(0, 4000); // token limit
+
+  // Sort: prioritize the file mentioned in the error, then App/router, then the rest
+  const errorFilePath = error.match(/src\/[^\s:"']+\.(tsx?|css)/)?.[0] ?? '';
+  const PRIORITY = ['App.tsx', 'main.tsx', 'router', errorFilePath].filter(Boolean);
+  const sorted = [
+    ...currentFiles.filter(f => PRIORITY.some(p => f.path.includes(p))),
+    ...currentFiles.filter(f => !PRIORITY.some(p => f.path.includes(p))),
+  ].filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts') || f.path.endsWith('.css'));
+
+  // Build context up to 20000 chars, always on file boundaries
+  let budget = 20000;
+  const included: string[] = [];
+  for (const f of sorted) {
+    const entry = `// FILE: ${f.path}\n${f.content}`;
+    if (included.length > 0 && entry.length > budget) break;
+    included.push(entry);
+    budget -= entry.length;
+  }
+  const fileContext = included.join('\n\n---\n\n');
 
   addWcLog('Error detectado — enviando al AI para corrección automática...');
 
   await useChatStore.getState().autoFixError(
-    `Corrige este error de Vite automáticamente:\n\`\`\`\n${error}\n\`\`\`\n\nArchivos actuales:\n${fileContext}`
+    `Corrige este error de Vite automáticamente:\n\`\`\`\n${error}\n\`\`\`\n\nARCHIVOS ACTUALES DEL PROYECTO (NO elimines ni simplifiques nada que no esté relacionado con el error):\n${fileContext}`
   );
 }
 
@@ -160,6 +175,48 @@ const DEFAULT_INDEX_HTML = `<!DOCTYPE html>
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+  <script>
+    // Forward HMR and runtime errors to the parent window for auto-fix
+    window.addEventListener('error', function(e) {
+      parent.postMessage({ type: 'error', err: { message: e.message, stack: e.error?.stack ?? '' } }, '*');
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      const msg = e.reason?.message || String(e.reason);
+      parent.postMessage({ type: 'error', err: { message: msg, stack: e.reason?.stack ?? '' } }, '*');
+    });
+
+    // Screenshot capture for publish thumbnails
+    window.addEventListener('message', async function(e) {
+      if (e.data?.type !== 'orion-capture') return;
+      try {
+        // Lazy-load html2canvas only when needed
+        if (!window.html2canvas) {
+          await new Promise(function(resolve, reject) {
+            var s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        // Wait for fonts and images to settle
+        await new Promise(function(r) { setTimeout(r, 800); });
+        var canvas = await window.html2canvas(document.body, {
+          scale: 0.4,
+          useCORS: true,
+          allowTaint: true,
+          width: 1280,
+          height: 800,
+          windowWidth: 1280,
+          windowHeight: 800,
+          logging: false,
+        });
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        parent.postMessage({ type: 'orion-screenshot', dataUrl: dataUrl }, '*');
+      } catch(err) {
+        parent.postMessage({ type: 'orion-screenshot', error: String(err) }, '*');
+      }
+    });
+  </script>
 </body>
 </html>`;
 
@@ -587,15 +644,22 @@ export const useChat = create<ChatStore>((set, get) => ({
       await aiService.streamMessage(errorPrompt, chatHistory, undefined,
         (chunk) => { fullResponse += chunk; set({ streamingContent: fullResponse }); },
         async (enriched) => {
-          enrichedData = enriched;
+          // Merge fixed files with existing — never lose untouched files
+          const existingFiles = useChatStore.getState().uiData?.files ?? [];
+          const incomingPaths = new Set(enriched.files.map(f => f.path));
+          const mergedFiles = [
+            ...existingFiles.filter(f => !incomingPaths.has(f.path)),
+            ...enriched.files,
+          ];
+          enrichedData = { ...enriched, files: mergedFiles };
+
           set({ generatedCode: enriched.reactCode, wcError: '' });
           const isRunning = useChatStore.getState().wcStatus === 'ready';
           if (isRunning) {
-            // WC already running — only patch src files, don't touch node_modules
-            await bootWebContainer(enriched.files);
+            await bootWebContainer(enriched.files); // HMR: only changed files
           } else {
-            await writeFilesToVirtualFS(enriched.files);
-            bootWebContainer(enriched.files);
+            await writeFilesToVirtualFS(mergedFiles);
+            bootWebContainer(mergedFiles);
           }
         }
       );
@@ -604,15 +668,18 @@ export const useChat = create<ChatStore>((set, get) => ({
     }
 
     let parsedUiData: UIComponentData | undefined;
-    try {
-      const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('no json');
-      const parsed = JSON.parse(jsonMatch[0]) as UIComponentData;
-      if (parsed.type === 'ui_component') {
-        parsedUiData = { ...parsed, reactCode: enrichedData?.reactCode || parsed.reactCode || '', previewHtml: '' };
-        set({ uiData: parsedUiData, generatedCode: parsedUiData.reactCode, wcError: '' });
-      }
-    } catch { /* plain text fix */ }
+    if (enrichedData) {
+      parsedUiData = {
+        type: 'ui_component',
+        description: enrichedData.description || 'Error corregido',
+        reactCode: enrichedData.reactCode,
+        previewHtml: '',
+        designInfo: enrichedData.designInfo ?? { colors: {}, effects: [], layout: '', components: [] },
+        files: enrichedData.files,
+        timestamp: enrichedData.timestamp,
+      };
+      set({ uiData: parsedUiData, generatedCode: parsedUiData.reactCode, wcError: '' });
+    }
 
     set(state => ({
       messages: [
@@ -636,6 +703,35 @@ export const useChat = create<ChatStore>((set, get) => ({
     wcError: '',
     uiData: null,
   }),
+
+  loadTemplateFiles: async (name: string, files: { path: string; content: string }[]) => {
+    const augmented = augmentFilesForWC(files);
+    await writeFilesToVirtualFS(augmented);
+
+    const reactCode = augmented.find(f => f.path.includes('App.tsx'))?.content ?? '';
+    const uiData: UIComponentData = {
+      type: 'ui_component',
+      description: `Plantilla "${name}" cargada.`,
+      reactCode,
+      previewHtml: '',
+      designInfo: { colors: {}, effects: [], layout: '', components: [] },
+      files: augmented,
+      timestamp: new Date().toISOString(),
+    };
+
+    set({
+      uiData,
+      generatedCode: reactCode,
+      messages: [{
+        role: 'assistant',
+        content: `Plantilla **${name}** cargada correctamente. Puedes ver el preview mientras arranca y pedirme los cambios que quieras.`,
+        timestamp: new Date(),
+        uiData,
+      }],
+    });
+
+    bootWebContainer(augmented);
+  },
 }));
 
 // Export store reference so helpers above can call setState

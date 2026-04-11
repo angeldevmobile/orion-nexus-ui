@@ -6,6 +6,58 @@ import { aiQueue } from '../services/aiQueue';
 import { promptCache } from '../services/promptCache';
 
 /**
+ * GET /api/admin/templates
+ * Lista todas las plantillas públicas para gestión.
+ */
+export const getAdminTemplates = asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query<{
+    id: string;
+    name: string;
+    description: string;
+    owner_username: string;
+    likes_count: number;
+    created_at: string;
+    settings: string;
+  }>(`
+    SELECT
+      p.id,
+      p.name,
+      p.description,
+      u.username AS owner_username,
+      COALESCE(p.likes_count, 0) AS likes_count,
+      TO_CHAR(p.created_at, 'DD/MM/YYYY') AS created_at,
+      p.settings
+    FROM projects p
+    LEFT JOIN users u ON p.owner_id = u.id
+    WHERE p.is_public = true
+    ORDER BY p.created_at DESC
+  `);
+
+  res.status(HTTP_STATUS.OK).json({ success: true, data: result.rows });
+});
+
+/**
+ * DELETE /api/admin/templates/:id
+ * Admin elimina cualquier plantilla independientemente del owner.
+ */
+export const deleteAdminTemplate = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const check = await pool.query(
+    `SELECT id FROM projects WHERE id = $1 AND is_public = true`,
+    [id]
+  );
+  if (check.rows.length === 0) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, message: 'Template not found' });
+    return;
+  }
+
+  await pool.query('DELETE FROM projects WHERE id = $1', [id]);
+
+  res.status(HTTP_STATUS.OK).json({ success: true, message: 'Template deleted successfully' });
+});
+
+/**
  * GET /api/admin/stats
  * Retorna métricas completas de la plataforma.
  */
@@ -54,7 +106,7 @@ export const getAdminStats = asyncHandler(async (_req: Request, res: Response) =
         LIMIT 10
       `),
 
-      // ── Top consumidores de créditos diarios ────────────────────────
+      //  Top consumidores de créditos diarios 
       pool.query<{
         id: string;
         username: string;

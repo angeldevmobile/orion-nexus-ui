@@ -1,4 +1,5 @@
 import { createContext } from "react";
+import type { UserPreferences } from "@/types/auth";
 
 export interface UserProfile {
   id: string;
@@ -8,7 +9,7 @@ export interface UserProfile {
   role: string;
   github_id?: string;
   has_password?: boolean;
-  preferences?: Record<string, unknown>;
+  preferences?: UserPreferences;
 }
 
 export type AuthContextType = {
